@@ -174,6 +174,47 @@ float random()
     return rand() / float(RAND_MAX);
 }
 
+
+float random(float min, float max)
+{
+    return min + (max - min) * random();
+}
+
+
+vec3f random_vector()
+{
+    return vec3f(random(), random(), random());
+}
+
+
+vec3f random_vector(float min, float max)
+{
+    return vec3f(random(min, max), random(min, max), random(min, max));
+}
+
+
+vec3f random_shpere()
+{
+    while (true) {
+        vec3f point = random_vector(-1, 1);
+        float length = point.length();
+        if (length * length >= 1) {
+            continue;
+        }
+        return point;
+    }
+}
+
+
+vec3f gamma(vec3f v, float power)
+{
+    float x = pow(v.x(), power);
+    float y = pow(v.y(), power);
+    float z = pow(v.z(), power);
+    return vec3f(x, y, z);
+}
+
+
 float clamp(float value, float min, float max)
 {
     if (value < min) {
@@ -188,11 +229,17 @@ float clamp(float value, float min, float max)
 }
 
 
-vec3f shading_ray(const ray& r, float t_min, float t_max, const scene& scn)
+vec3f shading_ray(const scene& scn, const ray& r, int depth)
 {
+    if (depth <= 0) {
+        return vec3f(0, 0, 0);
+    }
+
     intersection crossover;
-    if (scn.intersect(r, t_min, t_max, crossover)) {
-        return 0.5 * (crossover.normal + vec3f(1, 1, 1));
+    if (scn.intersect(r, 0, infinity, crossover)) {
+        vec3f next = crossover.point + crossover.normal + random_shpere();
+        ray next_r =  ray(crossover.point, next - crossover.point);
+        return 0.5 * shading_ray(scn, next_r, depth - 1);
     }
     float t = 0.5 * (r.direction().normalize().y() + 1.0);
     return (1.0 - t) * vec3f(1.0, 1.0, 1.0) + t * vec3f(0.5, 0.7, 1.0);
@@ -207,6 +254,7 @@ void render_image(const char* path, int width, int height)
     camera cam = camera(vec3f(0, 0, 0), 3.56, 2.0, 1.0);
 
     int spp = 100;
+    int max_depth = 10;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
     printf("[INFO] starting write test image...\n");
@@ -220,9 +268,10 @@ void render_image(const char* path, int width, int height)
                 float x = float(j + random()) / (width - 1);
                 float y = float(i + random()) / (height - 1);
                 ray r = cam.emit(x, y);
-                color += shading_ray(r, 0, infinity, scn);
+                color += shading_ray(scn, r, max_depth);
             }
             color /= spp;
+            color = gamma(color, 0.45);
             int index = (i * width + j) * 3;
             data[index] = int(color.x() * 255);
             data[index + 1] = int(color.y() * 255);
