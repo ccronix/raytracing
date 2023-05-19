@@ -201,7 +201,19 @@ vec3d random_shpere()
         if (length * length >= 1) {
             continue;
         }
-        return point;
+        return point.normalize();
+    }
+}
+
+
+vec3d random_hemisphere(const vec3d& normal)
+{
+    vec3d value = random_shpere();
+    if (value.dot(normal) > 0.0) {
+        return value;
+    }
+    else {
+        return -value;
     }
 }
 
@@ -245,8 +257,8 @@ vec3d shading_ray(const scene& scn, const ray& r, int depth)
     }
 
     intersection crossover;
-    if (scn.intersect(r, 0.01, infinity, crossover)) {
-        vec3d next = crossover.point + crossover.normal + random_shpere();
+    if (scn.intersect(r, 0.001, infinity, crossover)) {
+        vec3d next = crossover.point + random_hemisphere(crossover.normal);
         ray next_r =  ray(crossover.point, next - crossover.point);
         return 0.5 * shading_ray(scn, next_r, depth - 1);
     }
@@ -262,7 +274,7 @@ void render_image(const char* path, int width, int height)
     scn.add(std::make_shared<sphere>(sphere(vec3d(0, -100.5, -1), 100)));
     camera cam = camera(vec3d(0, 0, 0), 3.56, 2.0, 1.0);
 
-    int spp = 100;
+    int spp = 1000;
     int max_depth = 10;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
