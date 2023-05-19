@@ -86,22 +86,20 @@ public:
         if (discriminant < 0) {
             return false;
         }
-        else {
-            float root = (-b - sqrt(discriminant)) / (a * 2);
-            
-            if (root < t_min || root > t_max) {
-                root = (-b + sqrt(discriminant)) / (a * 2);
-                if (root < t_min || root > t_max) {
-                    return false; 
-                }
-            }
 
-            crossover.t = root;
-            crossover.point = r.at(root);
-            vec3f outward_normal = (crossover.point - center) / radius;
-            crossover.set_face_normal(r, outward_normal);
-            return true;
+        float root = (-b - sqrt(discriminant)) / (a * 2);
+        
+        if (root < t_min || root > t_max) {
+            root = (-b + sqrt(discriminant)) / (a * 2);
+            if (root < t_min || root > t_max) {
+                return false; 
+            }
         }
+        crossover.t = root;
+        crossover.point = r.at(root);
+        vec3f outward_normal = (crossover.point - center) / radius;
+        crossover.set_face_normal(r, outward_normal);
+        return true;
     }
 };
 
