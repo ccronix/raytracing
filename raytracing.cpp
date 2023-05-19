@@ -208,18 +208,19 @@ void render_image(const char* path, int width, int height)
     scn.add(std::make_shared<sphere>(sphere(vec3f(0, -100.5, -1), 100)));
     camera cam = camera(vec3f(0, 0, 0), 3.56, 2.0, 1.0);
 
-    float spp = 100;
+    int spp = 100;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
     printf("[INFO] starting write test image...\n");
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < height; i++) {
+        printf("\rRendering (%d spp) %5.2f%%", spp, 100. * i / (height - 1));
         for (int j = 0; j < width; j++) {
             vec3f color = vec3f(0, 0, 0);
             for (int k = 0; k < spp; k++) {
-                float x = float(j + random()) / width;
-                float y = float(i + random()) / height;
+                float x = float(j + random()) / (width - 1);
+                float y = float(i + random()) / (height - 1);
                 ray r = cam.emit(x, y);
                 color += shading_ray(r, 0, infinity, scn);
             }
@@ -232,7 +233,7 @@ void render_image(const char* path, int width, int height)
     }
     stbi_flip_vertically_on_write(true);
     stbi_write_png(path, width, height, 3, data, 0);
-    printf("[INFO] write image done.\n");
+    printf("\n[INFO] write image done.\n");
     free(data);
     data = NULL;
 }
