@@ -101,6 +101,12 @@ vec3d clamp(vec3d value, double min, double max)
 }
 
 
+vec3d reflect(const vec3d& input, const vec3d& normal)
+{
+    return input - 2 * input.dot(normal) * normal;
+}
+
+
 class ray {
 
 public:
@@ -129,7 +135,7 @@ class material;
 class intersection {
 
 public:
-    vec3d point;
+    vec3d position;
     vec3d normal;
     double t;
     material* mat;
@@ -165,9 +171,32 @@ public:
         if (near_zero(next)) {
             next = crossover.normal;
         }
-        scatter = ray(crossover.point, next);
+        scatter = ray(crossover.position, next);
         attenuation = albedo;
         return true;
+    }
+};
+
+
+class metal : public material {
+
+public:
+    vec3d albedo;
+    double roughness;
+
+    metal(const vec3d& color, double roughness) 
+    {
+        albedo = color;
+        this->roughness = roughness < 1 ? roughness : 1;
+    }
+
+    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
+    {
+        vec3d next = reflect(r.direction().normalize(), crossover.normal);
+        vec3d fuzz = roughness * random_shpere();
+        scatter = ray(crossover.position, next + fuzz);
+        attenuation = albedo;
+        return scatter.direction().dot(crossover.normal) > 0;
     }
 };
 
@@ -216,8 +245,8 @@ public:
             }
         }
         crossover.t = root;
-        crossover.point = r.at(root);
-        vec3d outward_normal = (crossover.point - center) / radius;
+        crossover.position = r.at(root);
+        vec3d outward_normal = (crossover.position - center) / radius;
         crossover.set_face_normal(r, outward_normal);
         crossover.mat = mat;
         return true;
@@ -315,10 +344,17 @@ vec3d trace(const scene& scn, const ray& r, int depth)
 void render_image(const char* path, int width, int height)
 {
     material* grey_diffuse = new lambertian(vec3d(0.5, 0.5, 0.5));
+    material* silver_metal = new metal(vec3d(0.8, 0.8, 0.8), 0.1);
+    material* yellow_metal = new metal(vec3d(0.8, 0.6, 0.2), 0.2);
+
+    object* left_ball = new sphere(sphere(vec3d(1, 0, -1), 0.5, silver_metal));
+    object* right_ball = new sphere(sphere(vec3d(-1, 0, -1), 0.5, yellow_metal));
     object* small_ball = new sphere(sphere(vec3d(0, 0, -1), 0.5, grey_diffuse));
     object* large_ball = new sphere(sphere(vec3d(0, -100.5, -1), 100, grey_diffuse));
 
     scene scn;
+    scn.add(left_ball);
+    scn.add(right_ball);
     scn.add(small_ball);
     scn.add(large_ball);
     camera cam = camera(vec3d(0, 0, 0), 3.56, 2.0, 1.0);
