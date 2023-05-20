@@ -11,12 +11,19 @@
 #include "stb/stb_image_write.hpp"
 
 const double infinity = std::numeric_limits<double>::infinity();
+const double pi = 3.141592653589;
 
 
 bool near_zero(vec3d v)
 {
     double e = 1e-8;
     return (fabs(v.x() < e)) && (fabs(v.y() < e)) && (fabs(v.z() < e));
+}
+
+
+double degree_to_arc(double degree)
+{
+    return degree * pi / 180;
 }
 
 
@@ -335,28 +342,39 @@ public:
 class camera {
 
 public:
-    vec3d origin;
-    double sensor_w;
-    double sensor_h;
-    double focal_length;
+    vec3d position;
+    vec3d lookat;
+    vec3d up;
+    double fov;
+    double aspect_ratio;
 
     camera() {}
 
-    camera(vec3d origin, double sensor_w, double sensor_h, double focal_length)
+    camera(vec3d position, vec3d lookat, vec3d up, double fov, double aspect_ratio)
     {
-        this->sensor_w = sensor_w;
-        this->sensor_h = sensor_h;
-        this->focal_length = focal_length;
+        this->position = position;
+        this->lookat = lookat;
+        this->up = up;
+        this->fov = fov;
+        this->aspect_ratio = aspect_ratio;
 
-        horizontal = vec3d(sensor_w, 0, 0);
-        vertical = vec3d(0, sensor_h, 0);
-        left_bottom = origin - horizontal / 2 - vertical / 2 - vec3d(0, 0, focal_length);
+        double arc_fov = degree_to_arc(fov);
+        double sensor_h = tan(arc_fov / 2) * 2;
+        double sensor_w = sensor_h * aspect_ratio;
+
+        vec3d z = (position - lookat).normalize();
+        vec3d x = up.cross(z).normalize();
+        vec3d y = z.cross(x);
+
+        horizontal = sensor_w * x;
+        vertical = sensor_h * y;
+        left_bottom = position - horizontal / 2 - vertical / 2 - z;
     }
 
     ray emit(double x, double y) const
     {
-        vec3d direction = left_bottom + x * horizontal + y * vertical - origin;
-        return ray(origin, direction);
+        vec3d direction = left_bottom + x * horizontal + y * vertical - position;
+        return ray(position, direction);
     }
 
 private:
@@ -405,7 +423,7 @@ void render_image(const char* path, int width, int height)
     scn.add(right_ball);
     scn.add(small_ball);
     scn.add(large_ball);
-    camera cam = camera(vec3d(0, 0, 0), 3.56, 2.0, 1.0);
+    camera cam = camera(vec3d(0, 0, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78);
 
     int spp = 100;
     int max_depth = 10;
