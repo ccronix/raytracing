@@ -107,6 +107,15 @@ vec3d reflect(const vec3d& input, const vec3d& normal)
 }
 
 
+vec3d refract(const vec3d& input, const vec3d& normal, double refract_ratio)
+{
+    double cos_theta = fmin(-input.dot(normal), 1.0);
+    vec3d out_perp = refract_ratio * (input + cos_theta * normal);
+    vec3d out_parallel = -sqrt(fabs(1.0 - out_perp.length() * out_perp.length())) * normal;
+    return out_perp + out_parallel;
+}
+
+
 class ray {
 
 public:
@@ -197,6 +206,44 @@ public:
         scatter = ray(crossover.position, next + fuzz);
         attenuation = albedo;
         return scatter.direction().dot(crossover.normal) > 0;
+    }
+};
+
+
+class dielectric : public material {
+
+public:
+    double ior;
+
+    dielectric(double ior) { this->ior = ior; }
+
+    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
+    {
+        attenuation = vec3d(1, 1, 1);
+        double refract_ratio = crossover.frontward ? (1.0 / ior) : ior;
+
+        vec3d next = r.direction().normalize();
+        double cos_theta = fmin((-next).dot(crossover.normal), 1.0);
+        double sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+        bool not_refract = refract_ratio * sin_theta > 1.0;
+
+        vec3d referaction;
+        if (not_refract || reflectance(cos_theta, refract_ratio) > random()) {
+            referaction = reflect(next, crossover.normal);
+        }
+        else {
+            referaction =  refract(next, crossover.normal, refract_ratio);
+        }
+        scatter = ray(crossover.position, referaction);
+        return true;
+    }
+
+private:
+    static double reflectance(double cos_theta, double ior)
+    {
+        double r = (1 - ior) / (1 + ior);
+        r = r * r;
+        return r + (1 - r) * pow((1 - cos_theta), 5);
     }
 };
 
@@ -343,13 +390,14 @@ vec3d trace(const scene& scn, const ray& r, int depth)
 
 void render_image(const char* path, int width, int height)
 {
-    material* grey_diffuse = new lambertian(vec3d(0.5, 0.5, 0.5));
-    material* silver_metal = new metal(vec3d(0.8, 0.8, 0.8), 0.1);
+    material* blue_diffuse = new lambertian(vec3d(0.5, 0.5, 0.5));
+    material* grey_diffuse = new lambertian(vec3d(0.5, 0.4, 0.3));
+    material* glass = new dielectric(1.5);
     material* yellow_metal = new metal(vec3d(0.8, 0.6, 0.2), 0.2);
 
-    object* left_ball = new sphere(sphere(vec3d(1, 0, -1), 0.5, silver_metal));
-    object* right_ball = new sphere(sphere(vec3d(-1, 0, -1), 0.5, yellow_metal));
-    object* small_ball = new sphere(sphere(vec3d(0, 0, -1), 0.5, grey_diffuse));
+    object* right_ball = new sphere(sphere(vec3d(1, 0, -1), 0.5, glass));
+    object* left_ball = new sphere(sphere(vec3d(-1, 0, -1), 0.5, yellow_metal));
+    object* small_ball = new sphere(sphere(vec3d(0, 0, -1), 0.5, blue_diffuse));
     object* large_ball = new sphere(sphere(vec3d(0, -100.5, -1), 100, grey_diffuse));
 
     scene scn;
