@@ -60,7 +60,7 @@ public:
         return *this / length(); 
     }
 
-    T dot(const vec2 v) {
+    T dot(const vec2 v) const {
         T r1 = content[0] * v.content[0];
         T r2 = content[1] * v.content[1];
         return r1 + r2;

@@ -61,14 +61,14 @@ public:
         return *this / length(); 
     }
 
-    T dot(const vec3 v) {
+    T dot(const vec3 v) const {
         T r1 = content[0] * v.content[0];
         T r2 = content[1] * v.content[1];
         T r3 = content[2] * v.content[2];
         return r1 + r2 + r3;
     }
 
-    vec3 cross(const vec3 v) {
+    vec3 cross(const vec3 v) const {
         T r1 = content[1] * v.content[2] - content[2] * v.content[1];
         T r2 = content[2] * v.content[0] - content[0] * v.content[2];
         T r3 = content[0] * v.content[1] - content[1] * v.content[0];
