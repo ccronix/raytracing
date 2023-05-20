@@ -76,6 +76,19 @@ vec3d random_hemisphere(const vec3d& normal)
 }
 
 
+vec3d random_disk()
+{
+    while (true) {
+        vec3d point = vec3d(random(-1, 1), random(-1, 1), 0);
+        double length = point.length();
+        if (length * length >= 1) {
+            continue;
+        }
+        return point;
+    }
+}
+
+
 vec3d gamma(vec3d value, double power)
 {
     double x = pow(value.x(), power);
@@ -347,40 +360,49 @@ public:
     vec3d up;
     double fov;
     double aspect_ratio;
+    double aperture;
+    double focus_distance;
 
     camera() {}
 
-    camera(vec3d position, vec3d lookat, vec3d up, double fov, double aspect_ratio)
+    camera(vec3d position, vec3d lookat, vec3d up, double fov, double aspect_ratio, double aperture, double focus_distance)
     {
         this->position = position;
         this->lookat = lookat;
         this->up = up;
         this->fov = fov;
         this->aspect_ratio = aspect_ratio;
+        this->aperture = aperture;
+        this->focus_distance = focus_distance;
 
         double arc_fov = degree_to_arc(fov);
         double sensor_h = tan(arc_fov / 2) * 2;
         double sensor_w = sensor_h * aspect_ratio;
 
-        vec3d z = (position - lookat).normalize();
-        vec3d x = up.cross(z).normalize();
-        vec3d y = z.cross(x);
+        w = (position - lookat).normalize();
+        u = up.cross(w).normalize();
+        v = w.cross(u);
 
-        horizontal = sensor_w * x;
-        vertical = sensor_h * y;
-        left_bottom = position - horizontal / 2 - vertical / 2 - z;
+        horizontal = focus_distance * sensor_w * u;
+        vertical = focus_distance * sensor_h * v;
+        left_bottom = position - horizontal / 2 - vertical / 2 - focus_distance * w;
+        lens_radius = aperture / 2;
     }
 
     ray emit(double x, double y) const
     {
-        vec3d direction = left_bottom + x * horizontal + y * vertical - position;
-        return ray(position, direction);
+        vec3d defocus = lens_radius * random_disk();
+        vec3d offset = u * defocus.x() + v * defocus.y();
+        vec3d direction = left_bottom + x * horizontal + y * vertical - position - offset;
+        return ray(position + offset, direction);
     }
 
 private:
     vec3d left_bottom;
     vec3d horizontal;
     vec3d vertical;
+    vec3d u, v, w;
+    double lens_radius;
 };
 
 
@@ -423,7 +445,7 @@ void render_image(const char* path, int width, int height)
     scn.add(right_ball);
     scn.add(small_ball);
     scn.add(large_ball);
-    camera cam = camera(vec3d(0, 0, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78);
+    camera cam = camera(vec3d(3, 3, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78, 2.0, 5.2);
 
     int spp = 100;
     int max_depth = 10;
