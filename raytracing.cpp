@@ -3,7 +3,6 @@
 
 #include <omp.h>
 #include <vector>
-#include <memory>
 #include <limits>
 #include <cstdio>
 #include <cstdlib>
@@ -14,159 +13,11 @@
 const double infinity = std::numeric_limits<double>::infinity();
 
 
-class ray {
-
-public:
-    ray () {}
-    ray (vec3d orig, vec3d dir) 
-    {
-        this->orig = orig;
-        this->dir = dir;
-    }
-
-    vec3d origin() const { return orig; }
-
-    vec3d direction() const { return dir; }
-
-    vec3d at(double t) const { return orig + t * dir; }
-
-private:
-    vec3d orig;
-    vec3d dir;
-};
-
-
-class intersection {
-
-public:
-    vec3d point;
-    vec3d normal;
-    double t;
-    bool frontward;
-
-    intersection() {}
-
-    void set_face_normal(const ray& r, const vec3d& outward_normal)
-    {
-        frontward = r.direction().dot(outward_normal) < 0;
-        normal = frontward ? outward_normal : -outward_normal;
-    }
-};
-
-
-class object {
-
-public:
-    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const = 0;
-};
-
-
-class sphere : public object {
-
-public:
-    vec3d center;
-    double radius;
-
-    sphere() {}
-
-    sphere(vec3d center, double radius) 
-    {
-        this->center = center;
-        this->radius = radius;
-    }
-
-    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
-    {
-        vec3d oc = r.origin() - center;
-        double a = r.direction().dot(r.direction());
-        double b = 2.0 * oc.dot(r.direction());
-        double c = oc.dot(oc) - radius * radius;
-        double discriminant = b * b - 4 * a * c;
-
-        if (discriminant < 0) {
-            return false;
-        }
-
-        double root = (-b - sqrt(discriminant)) / (a * 2);
-        
-        if (root < t_min || root > t_max) {
-            root = (-b + sqrt(discriminant)) / (a * 2);
-            if (root < t_min || root > t_max) {
-                return false; 
-            }
-        }
-        crossover.t = root;
-        crossover.point = r.at(root);
-        vec3d outward_normal = (crossover.point - center) / radius;
-        crossover.set_face_normal(r, outward_normal);
-        return true;
-    }
-};
-
-
-class scene : public object {
-
-public:
-    std::vector<std::shared_ptr<object>> objects;
-
-    scene() {}
-
-    scene(std::shared_ptr<object> obj) { add(obj); }
-
-    void add(std::shared_ptr<object> obj) { objects.push_back(obj); }
-
-    void clear() { objects.clear(); }
-
-    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
-    {
-        intersection temp_crossover;
-        bool has_intersect = false;
-        double closest = t_max;
-
-        for (auto& object : objects) {
-            if (object->intersect(r, t_min, closest, temp_crossover)) {
-                has_intersect = true;
-                closest = temp_crossover.t;
-                crossover = temp_crossover;
-            }
-        }
-        return has_intersect;
-    }
-};
-
-
-class camera {
-
-public:
-    vec3d origin;
-    double sensor_w;
-    double sensor_h;
-    double focal_length;
-
-    camera() {}
-
-    camera(vec3d origin, double sensor_w, double sensor_h, double focal_length)
-    {
-        this->sensor_w = sensor_w;
-        this->sensor_h = sensor_h;
-        this->focal_length = focal_length;
-
-        horizontal = vec3d(sensor_w, 0, 0);
-        vertical = vec3d(0, sensor_h, 0);
-        left_bottom = origin - horizontal / 2 - vertical / 2 - vec3d(0, 0, focal_length);
-    }
-
-    ray emit(double x, double y) const
-    {
-        vec3d direction = left_bottom + x * horizontal + y * vertical - origin;
-        return ray(origin, direction);
-    }
-
-private:
-    vec3d left_bottom;
-    vec3d horizontal;
-    vec3d vertical;
-};
+bool near_zero(vec3d v)
+{
+    double e = 1e-8;
+    return (fabs(v.x() < e)) && (fabs(v.y() < e)) && (fabs(v.z() < e));
+}
 
 
 double random()
@@ -250,7 +101,196 @@ vec3d clamp(vec3d value, double min, double max)
 }
 
 
-vec3d shading_ray(const scene& scn, const ray& r, int depth)
+class ray {
+
+public:
+    ray () {}
+    ray (vec3d orig, vec3d dir) 
+    {
+        this->orig = orig;
+        this->dir = dir;
+    }
+
+    vec3d origin() const { return orig; }
+
+    vec3d direction() const { return dir; }
+
+    vec3d at(double t) const { return orig + t * dir; }
+
+private:
+    vec3d orig;
+    vec3d dir;
+};
+
+
+class material;
+
+
+class intersection {
+
+public:
+    vec3d point;
+    vec3d normal;
+    double t;
+    material* mat;
+    bool frontward;
+
+    intersection() {}
+
+    void set_face_normal(const ray& r, const vec3d& outward_normal)
+    {
+        frontward = r.direction().dot(outward_normal) < 0;
+        normal = frontward ? outward_normal : -outward_normal;
+    }
+};
+
+
+class material {
+
+public:
+    virtual bool shading(const ray&r, const intersection& crossover, vec3d& attenuation, ray& scatter) const = 0;
+};
+
+
+class lambertian : public material {
+
+public:
+    vec3d albedo;
+
+    lambertian(const vec3d& color) { albedo = color; }
+
+    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
+    {
+        vec3d next = crossover.normal + random_vector();
+        if (near_zero(next)) {
+            next = crossover.normal;
+        }
+        scatter = ray(crossover.point, next);
+        attenuation = albedo;
+        return true;
+    }
+};
+
+
+class object {
+
+public:
+    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const = 0;
+};
+
+
+class sphere : public object {
+
+public:
+    vec3d center;
+    double radius;
+    material* mat;
+
+    sphere() {}
+
+    sphere(vec3d center, double radius, material* mat) 
+    {
+        this->center = center;
+        this->radius = radius;
+        this->mat = mat;
+    }
+
+    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
+    {
+        vec3d oc = r.origin() - center;
+        double a = r.direction().dot(r.direction());
+        double b = 2.0 * oc.dot(r.direction());
+        double c = oc.dot(oc) - radius * radius;
+        double discriminant = b * b - 4 * a * c;
+
+        if (discriminant < 0) {
+            return false;
+        }
+
+        double root = (-b - sqrt(discriminant)) / (a * 2);
+        
+        if (root < t_min || root > t_max) {
+            root = (-b + sqrt(discriminant)) / (a * 2);
+            if (root < t_min || root > t_max) {
+                return false; 
+            }
+        }
+        crossover.t = root;
+        crossover.point = r.at(root);
+        vec3d outward_normal = (crossover.point - center) / radius;
+        crossover.set_face_normal(r, outward_normal);
+        crossover.mat = mat;
+        return true;
+    }
+};
+
+
+class scene : public object {
+
+public:
+    std::vector<object*> objects;
+
+    scene() {}
+
+    scene(object* obj) { add(obj); }
+
+    void add(object* obj) { objects.push_back(obj); }
+
+    void clear() { objects.clear(); }
+
+    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
+    {
+        intersection temp_crossover;
+        bool has_intersect = false;
+        double closest = t_max;
+
+        for (auto& object : objects) {
+            if (object->intersect(r, t_min, closest, temp_crossover)) {
+                has_intersect = true;
+                closest = temp_crossover.t;
+                crossover = temp_crossover;
+            }
+        }
+        return has_intersect;
+    }
+};
+
+
+class camera {
+
+public:
+    vec3d origin;
+    double sensor_w;
+    double sensor_h;
+    double focal_length;
+
+    camera() {}
+
+    camera(vec3d origin, double sensor_w, double sensor_h, double focal_length)
+    {
+        this->sensor_w = sensor_w;
+        this->sensor_h = sensor_h;
+        this->focal_length = focal_length;
+
+        horizontal = vec3d(sensor_w, 0, 0);
+        vertical = vec3d(0, sensor_h, 0);
+        left_bottom = origin - horizontal / 2 - vertical / 2 - vec3d(0, 0, focal_length);
+    }
+
+    ray emit(double x, double y) const
+    {
+        vec3d direction = left_bottom + x * horizontal + y * vertical - origin;
+        return ray(origin, direction);
+    }
+
+private:
+    vec3d left_bottom;
+    vec3d horizontal;
+    vec3d vertical;
+};
+
+
+vec3d trace(const scene& scn, const ray& r, int depth)
 {
     if (depth <= 0) {
         return vec3d(0, 0, 0);
@@ -258,9 +298,14 @@ vec3d shading_ray(const scene& scn, const ray& r, int depth)
 
     intersection crossover;
     if (scn.intersect(r, 0.001, infinity, crossover)) {
-        vec3d next = crossover.point + random_hemisphere(crossover.normal);
-        ray next_r =  ray(crossover.point, next - crossover.point);
-        return 0.5 * shading_ray(scn, next_r, depth - 1);
+        ray next_r;
+        vec3d attenuation;
+        if (crossover.mat->shading(r, crossover, attenuation, next_r)) {
+            return attenuation * trace(scn, next_r, depth - 1);
+        }
+        else {
+            return vec3d(0, 0, 0);
+        }
     }
     double t = 0.5 * (r.direction().normalize().y() + 1.0);
     return (1.0 - t) * vec3d(1.0, 1.0, 1.0) + t * vec3d(0.5, 0.7, 1.0);
@@ -269,12 +314,16 @@ vec3d shading_ray(const scene& scn, const ray& r, int depth)
 
 void render_image(const char* path, int width, int height)
 {
+    material* grey_diffuse = new lambertian(vec3d(0.5, 0.5, 0.5));
+    object* small_ball = new sphere(sphere(vec3d(0, 0, -1), 0.5, grey_diffuse));
+    object* large_ball = new sphere(sphere(vec3d(0, -100.5, -1), 100, grey_diffuse));
+
     scene scn;
-    scn.add(std::make_shared<sphere>(sphere(vec3d(0, 0, -1), 0.5)));
-    scn.add(std::make_shared<sphere>(sphere(vec3d(0, -100.5, -1), 100)));
+    scn.add(small_ball);
+    scn.add(large_ball);
     camera cam = camera(vec3d(0, 0, 0), 3.56, 2.0, 1.0);
 
-    int spp = 1000;
+    int spp = 100;
     int max_depth = 10;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
@@ -289,7 +338,7 @@ void render_image(const char* path, int width, int height)
                 double x = double(j + random()) / (width - 1);
                 double y = double(i + random()) / (height - 1);
                 ray r = cam.emit(x, y);
-                color += shading_ray(scn, r, max_depth);
+                color += trace(scn, r, max_depth);
             }
             color /= spp;
             color = clamp(color, 0, 1);
