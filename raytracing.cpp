@@ -428,30 +428,74 @@ vec3d trace(const scene& scn, const ray& r, int depth)
 }
 
 
+scene random_scene()
+{
+    scene scn;
+    material* ground_mat = new lambertian(vec3d(0.5, 0.5, 0.5));
+    scn.add(new sphere(sphere(vec3d(0, -1000, 0), 1000, ground_mat)));
+
+    for(int i = -11; i < 11; i++) {
+        for (int j = -11; j < 11; j++) {
+            double choose = random();
+            vec3d center = vec3d(i + 0.9 * random(), 0.2, j + 0.9 * random());
+
+            if ((center - vec3d(4, 0.2, 0)).length() > 0.9) {
+                if (choose < 0.8) {
+                    vec3d albedo = random_vector() * random_vector();
+                    material* sphere_mat = new lambertian(albedo);
+                    scn.add(new sphere(center, 0.2, sphere_mat));
+                }
+                else if (choose < 0.95)
+                {
+                    vec3d albedo = random_vector(0.5, 1);
+                    double roughness = random(0, 0.5);
+                    material* sphere_mat = new metal(albedo, roughness);
+                    scn.add(new sphere(center, 0.2, sphere_mat));
+                }
+                else {
+                    material* sphere_mat = new dielectric(1.5);
+                    scn.add(new sphere(center, 0.2, sphere_mat));
+                }
+            }
+        }
+    }
+    material* glass = new dielectric(1.5);
+    scn.add(new sphere(vec3d(0, 1, 0), 1.0, glass));
+
+    material* diffuse = new lambertian(vec3d(0.4, 0.2, 0.1));
+    scn.add(new sphere(vec3d(-4, 1, 0), 1.0, diffuse));
+
+    material* gold = new metal(vec3d(0.7, 0.6, 0.5), 0);
+    scn.add(new sphere(vec3d(4, 1, 0), 1.0, gold));
+    return scn;
+}
+
+
 void render_image(const char* path, int width, int height)
 {
-    material* blue_diffuse = new lambertian(vec3d(0.5, 0.5, 0.5));
-    material* grey_diffuse = new lambertian(vec3d(0.5, 0.4, 0.3));
-    material* glass = new dielectric(1.5);
-    material* yellow_metal = new metal(vec3d(0.8, 0.6, 0.2), 0.2);
+    // material* blue_diffuse = new lambertian(vec3d(0.5, 0.5, 0.5));
+    // material* grey_diffuse = new lambertian(vec3d(0.5, 0.4, 0.3));
+    // material* glass = new dielectric(1.5);
+    // material* yellow_metal = new metal(vec3d(0.8, 0.6, 0.2), 0.2);
 
-    object* right_ball = new sphere(sphere(vec3d(1, 0, -1), 0.5, glass));
-    object* left_ball = new sphere(sphere(vec3d(-1, 0, -1), 0.5, yellow_metal));
-    object* small_ball = new sphere(sphere(vec3d(0, 0, -1), 0.5, blue_diffuse));
-    object* large_ball = new sphere(sphere(vec3d(0, -100.5, -1), 100, grey_diffuse));
+    // object* right_ball = new sphere(sphere(vec3d(1, 0, -1), 0.5, glass));
+    // object* left_ball = new sphere(sphere(vec3d(-1, 0, -1), 0.5, yellow_metal));
+    // object* small_ball = new sphere(sphere(vec3d(0, 0, -1), 0.5, blue_diffuse));
+    // object* large_ball = new sphere(sphere(vec3d(0, -100.5, -1), 100, grey_diffuse));
 
-    scene scn;
-    scn.add(left_ball);
-    scn.add(right_ball);
-    scn.add(small_ball);
-    scn.add(large_ball);
-    camera cam = camera(vec3d(3, 3, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78, 2.0, 5.2);
+    scene scn = random_scene();
+    // scn.add(left_ball);
+    // scn.add(right_ball);
+    // scn.add(small_ball);
+    // scn.add(large_ball);
+    // camera cam = camera(vec3d(3, 3, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78, 2.0, 5.2);
+    camera cam = camera(vec3d(13, 2, 3), vec3d(0, 0, 0), vec3d(0, 1, 0), 30, 1.78, 0.1, 10);
 
     int spp = 100;
     int max_depth = 10;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
-    printf("[INFO] starting write test image...\n");
+    printf("[INFO] start render...\n");
 
 #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < height; i++) {
@@ -475,7 +519,7 @@ void render_image(const char* path, int width, int height)
     }
     stbi_flip_vertically_on_write(true);
     stbi_write_png(path, width, height, 3, data, 0);
-    printf("\n[INFO] write image done.\n");
+    printf("\n[INFO] render done.\n");
     free(data);
     data = NULL;
 }
