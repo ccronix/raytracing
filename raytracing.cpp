@@ -183,7 +183,7 @@ public:
 
     virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
     {
-        vec3d next = crossover.normal + random_vector();
+        vec3d next = crossover.normal + random_shpere().normalize();
         if (near_zero(next)) {
             next = crossover.normal;
         }
