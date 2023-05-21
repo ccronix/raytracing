@@ -261,6 +261,7 @@ public:
 class material {
 
 public:
+    virtual vec3d emit(const vec3d& position, const vec2d uv_coord) const { return vec3d(0, 0, 0); }
     virtual bool shading(const ray&r, const intersection& crossover, vec3d& attenuation, ray& scatter) const = 0;
 };
 
@@ -350,6 +351,27 @@ private:
         double r = (1 - ior) / (1 + ior);
         r = r * r;
         return r + (1 - r) * pow((1 - cos_theta), 5);
+    }
+};
+
+
+class light : public material {
+
+public:
+    texture* emission;
+
+    light(texture* tex) { emission = tex; }
+
+    light(const vec3d& color) { emission = new constant(color); }
+
+    virtual vec3d emit(const vec3d& position, const vec2d uv_coord) const override
+    {
+        return emission->color(position, uv_coord);
+    }
+
+    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
+    {
+        return false;
     }
 };
 
@@ -775,18 +797,18 @@ vec3d trace(const scene& scn, const ray& r, int depth)
     }
 
     intersection crossover;
-    if (scn.intersect(r, 0.001, infinity, crossover)) {
-        ray next_r;
-        vec3d attenuation;
-        if (crossover.mat->shading(r, crossover, attenuation, next_r)) {
-            return attenuation * trace(scn, next_r, depth - 1);
-        }
-        else {
-            return vec3d(0, 0, 0);
-        }
+    if (!scn.intersect(r, 0.001, infinity, crossover)) {
+        double t = 0.5 * (r.direction().normalize().y() + 1.0);
+        return (1.0 - t) * vec3d(1.0, 1.0, 1.0) + t * vec3d(0.5, 0.7, 1.0);
     }
-    double t = 0.5 * (r.direction().normalize().y() + 1.0);
-    return (1.0 - t) * vec3d(1.0, 1.0, 1.0) + t * vec3d(0.5, 0.7, 1.0);
+
+    ray next_r;
+    vec3d attenuation;
+    vec3d emission = crossover.mat->emit(crossover.position, crossover.uv_coord);
+    if (!crossover.mat->shading(r, crossover, attenuation, next_r)) {
+        return emission;
+    }
+    return emission + attenuation * trace(scn, next_r, depth - 1);
 }
 
 
