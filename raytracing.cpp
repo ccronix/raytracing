@@ -274,10 +274,65 @@ private:
 };
 
 
+class aabb {
+
+public:
+    aabb() {}
+
+    aabb(const vec3d& minimum, const vec3d& maximum)
+    {
+        this->minimum = minimum;
+        this->maximum = maximum;
+    }
+
+    vec3d min() const { return minimum; }
+
+    vec3d max() const { return maximum; }
+
+    bool intersect(const ray&r, double t_min, double t_max) const
+    {
+        for (int i = 0; i < 3; i++) {
+            double invert_d = 1.0 / r.direction()[i];
+            double t0 = (minimum[i] - r.origin()[i]) * invert_d;
+            double t1 = (maximum[i] - r.origin()[i]) * invert_d;
+            if (invert_d < 0.0) {
+                std::swap(t0, t1);
+            }
+            t_min = t0 > t_min ? t0 : t_min;
+            t_max = t1 < t_max ? t1 : t_max;
+            if (t_max <= t_min) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    friend aabb surrounding_box(aabb bbox0, aabb bbox1)
+    {
+        double min_x = fmin(bbox0.min().x(), bbox1.min().x());
+        double min_y = fmin(bbox0.min().y(), bbox1.min().y());
+        double min_z = fmin(bbox0.min().z(), bbox1.min().z());
+        vec3d minimum = vec3d(min_x, min_y, min_z);
+
+        double max_x = fmax(bbox0.max().x(), bbox1.max().x());
+        double max_y = fmax(bbox0.max().y(), bbox1.max().y());
+        double max_z = fmax(bbox0.max().z(), bbox1.max().z());
+        vec3d maximum = vec3d(max_x, max_y, max_z);
+
+        return aabb(minimum, maximum);
+    }
+
+private:
+    vec3d minimum;
+    vec3d maximum;
+};
+
+
 class object {
 
 public:
     virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const = 0;
+    virtual bool bounding_box(double start, double end, aabb& bbox) const = 0;
 };
 
 
@@ -322,6 +377,14 @@ public:
         vec3d outward_normal = (crossover.position - center) / radius;
         crossover.set_face_normal(r, outward_normal);
         crossover.mat = mat;
+        return true;
+    }
+
+    virtual bool bounding_box(double start, double end, aabb& bbox) const override
+    {
+        vec3d minimum = center - vec3d(radius, radius, radius);
+        vec3d maximum = center + vec3d(radius, radius, radius);
+        bbox = aabb(minimum, maximum);
         return true;
     }
 };
@@ -379,6 +442,20 @@ public:
         crossover.mat = mat;
         return true;
     }
+
+    virtual bool bounding_box(double start, double end, aabb& bbox) const override
+    {
+        vec3d min_start = center(start) - vec3d(radius, radius, radius);
+        vec3d max_start = center(start) + vec3d(radius, radius, radius);
+        aabb bbox_start = aabb(min_start, max_start);
+
+        vec3d min_end = center(end) - vec3d(radius, radius, radius);
+        vec3d max_end = center(end) + vec3d(radius, radius, radius);
+        aabb bbox_end = aabb(min_end, max_end);
+
+        bbox = surrounding_box(bbox_start, bbox_end);
+        return true;
+    }
 };
 
 
@@ -409,6 +486,24 @@ public:
             }
         }
         return has_intersect;
+    }
+
+    virtual bool bounding_box(double start, double end, aabb& bbox) const override
+    {
+        if (objects.empty()) {
+            return false;
+        }
+
+        aabb temp_bbox;
+        bool first = false;
+        for (auto& object : objects) {
+            if (!object->bounding_box(start, end, temp_bbox)) {
+                return false;
+            }
+            bbox = first ? temp_bbox : surrounding_box(bbox, temp_bbox);
+            first = false;
+        }
+        return true;
     }
 };
 
@@ -567,7 +662,7 @@ void render_image(const char* path, int width, int height)
     // camera cam = camera(vec3d(3, 3, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78, 2.0, 5.2);
     camera cam = camera(vec3d(13, 2, 3), vec3d(0, 0, 0), vec3d(0, 1, 0), 30, 1.78, 0.1, 10, 0, 1);
 
-    int spp = 100;
+    int spp = 10;
     int max_depth = 10;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
