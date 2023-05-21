@@ -179,6 +179,7 @@ class intersection {
 public:
     vec3d position;
     vec3d normal;
+    vec2d uv_coord;
     double t;
     material* mat;
     bool frontward;
@@ -193,6 +194,64 @@ public:
 };
 
 
+class texture {
+
+public:
+    virtual vec3d color(const vec3d& position, const vec2d& uv_coord) const = 0;
+};
+
+
+class constant : public texture {
+
+public:
+    vec3d base_color;
+
+    constant() {}
+
+    constant(vec3d base_color) { this->base_color = base_color; }
+
+    constant(double r, double g, double b) { this->base_color = vec3d(r, g, b); }
+
+    virtual vec3d color(const vec3d& position, const vec2d& uv_coord) const override
+    {
+        return base_color;
+    }
+};
+
+
+class checker : public texture {
+
+public:
+    texture* even;
+    texture* odds;
+
+    checker() {}
+
+    checker(texture* even, texture* odds)
+    {
+        this->even = even;
+        this->odds = odds;
+    }
+
+    checker(const vec3d& even_color, const vec3d odds_color)
+    {
+        even = new constant(even_color);
+        odds = new constant(odds_color);
+    }
+
+    virtual vec3d color(const vec3d& position, const vec2d& uv_coord) const override
+    {
+        double sine = sin(10 * position.x()) * sin(10 * position.y()) * sin(10 * position.z());
+        if (sine < 0) {
+            return even->color(position, uv_coord);
+        }
+        else {
+            return odds->color(position, uv_coord);
+        }
+    }
+};
+
+
 class material {
 
 public:
@@ -203,9 +262,11 @@ public:
 class lambertian : public material {
 
 public:
-    vec3d albedo;
+    texture* base_color;
 
-    lambertian(const vec3d& color) { albedo = color; }
+    lambertian(const vec3d& color) { base_color = new constant(color); }
+
+    lambertian(texture* tex) { base_color = tex; }
 
     virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
     {
@@ -214,7 +275,7 @@ public:
             next = crossover.normal;
         }
         scatter = ray(crossover.position, next, r.time());
-        attenuation = albedo;
+        attenuation = base_color->color(crossover.position, crossover.uv_coord);
         return true;
     }
 };
@@ -383,6 +444,7 @@ public:
         crossover.position = r.at(root);
         vec3d outward_normal = (crossover.position - center) / radius;
         crossover.set_face_normal(r, outward_normal);
+        crossover.uv_coord = uv(outward_normal);
         crossover.mat = mat;
         return true;
     }
@@ -393,6 +455,16 @@ public:
         vec3d maximum = center + vec3d(radius, radius, radius);
         bbox = aabb(minimum, maximum);
         return true;
+    }
+
+private:
+    static vec2d uv(const vec3d& position)
+    {
+        double theta = acos(-position.y());
+        double phi = atan2(-position.z(), position.x()) + pi;
+        double u = phi / (2 * pi);
+        double v = theta / pi;
+        return vec2d(u, v);
     }
 };
 
@@ -698,7 +770,8 @@ vec3d trace(const scene& scn, const ray& r, int depth)
 scene random_scene()
 {
     scene scn;
-    material* ground_mat = new lambertian(vec3d(0.5, 0.5, 0.5));
+    texture* checker_tex = new checker(vec3d(0, 0, 0), vec3d(1, 1, 1));
+    material* ground_mat = new lambertian(checker_tex);
     scn.add(new sphere(sphere(vec3d(0, -1000, 0), 1000, ground_mat)));
 
     for(int i = -11; i < 11; i++) {
