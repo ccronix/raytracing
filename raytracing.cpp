@@ -583,6 +583,159 @@ private:
 };
 
 
+class planexy : public object {
+
+public:
+    material* mat;
+    double x0, x1, y0, y1, k;
+
+    planexy() {}
+
+    planexy(double x0, double x1, double y0, double y1, double k, material* mat)
+    {
+        this->x0 = x0;
+        this->x1 = x1;
+        this->y0 = y0;
+        this->y1 = y1;
+        this->k = k;
+        this->mat = mat;
+    }
+
+    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
+    {
+        double t = (k - r.origin().z()) / r.direction().z();
+        if (t < t_min || t > t_max) {
+            return false;
+        }
+
+        double x = r.origin().x() + t * r.direction().x();
+        double y = r.origin().y() + t * r.direction().y();
+        if (x < x0 || x > x1 || y < y0 || y > y1) {
+            return false;
+        }
+
+        double u = (x - x0) / (x1 - x0);
+        double v = (y - y0) / (y1 - y0);
+
+        vec3d outward_normal = vec3d(0, 0, 1);
+        crossover.set_face_normal(r, outward_normal);
+        crossover.uv_coord = vec2d(u, v);
+        crossover.t = t;
+        crossover.position = r.at(t);
+        crossover.mat = mat;
+        return true;
+    }
+
+    virtual bool bounding_box(double start, double end, aabb& bbox) const override
+    {
+        bbox = aabb(vec3d(x0, y0, k - 0.001), vec3d(x1, y1, k + 0.001));
+        return true;
+    }
+};
+
+
+class planexz : public object {
+
+public:
+    material* mat;
+    double x0, x1, z0, z1, k;
+
+    planexz() {}
+
+    planexz(double x0, double x1, double z0, double z1, double k, material* mat)
+    {
+        this->x0 = x0;
+        this->x1 = x1;
+        this->z0 = z0;
+        this->z1 = z1;
+        this->k = k;
+        this->mat = mat;
+    }
+
+    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
+    {
+        double t = (k - r.origin().y()) / r.direction().y();
+        if (t < t_min || t > t_max) {
+            return false;
+        }
+
+        double x = r.origin().x() + t * r.direction().x();
+        double z = r.origin().z() + t * r.direction().z();
+        if (x < x0 || x > x1 || z < z0 || z > z1) {
+            return false;
+        }
+
+        double u = (x - x0) / (x1 - x0);
+        double v = (z - z0) / (z1 - z0);
+
+        vec3d outward_normal = vec3d(0, 1, 0);
+        crossover.set_face_normal(r, outward_normal);
+        crossover.uv_coord = vec2d(u, v);
+        crossover.t = t;
+        crossover.position = r.at(t);
+        crossover.mat = mat;
+        return true;
+    }
+
+    virtual bool bounding_box(double start, double end, aabb& bbox) const override
+    {
+        bbox = aabb(vec3d(x0, k - 0.001, z0), vec3d(x1, k + 0.001, z1));
+        return true;
+    }
+};
+
+
+class planeyz : public object {
+
+public:
+    material* mat;
+    double y0, y1, z0, z1, k;
+
+    planeyz() {}
+
+    planeyz(double y0, double y1, double z0, double z1, double k, material* mat)
+    {
+        this->y0 = y0;
+        this->y1 = y1;
+        this->z0 = z0;
+        this->z1 = z1;
+        this->k = k;
+        this->mat = mat;
+    }
+
+    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
+    {
+        double t = (k - r.origin().x()) / r.direction().x();
+        if (t < t_min || t > t_max) {
+            return false;
+        }
+
+        double y = r.origin().y() + t * r.direction().y();
+        double z = r.origin().z() + t * r.direction().z();
+        if (y < y0 || y > y1 || z < z0 || z > z1) {
+            return false;
+        }
+
+        double u = (y - y0) / (y1 - y0);
+        double v = (z - z0) / (z1 - z0);
+
+        vec3d outward_normal = vec3d(1, 0, 0);
+        crossover.set_face_normal(r, outward_normal);
+        crossover.uv_coord = vec2d(u, v);
+        crossover.t = t;
+        crossover.position = r.at(t);
+        crossover.mat = mat;
+        return true;
+    }
+
+    virtual bool bounding_box(double start, double end, aabb& bbox) const override
+    {
+        bbox = aabb(vec3d(k - 0.001, y0, z0), vec3d(k + 0.001, y1, z1));
+        return true;
+    }
+};
+
+
 class scene : public object {
 
 public:
@@ -741,8 +894,8 @@ public:
         vec3d up, 
         double fov, 
         double aspect_ratio, 
-        double aperture, 
-        double focus_distance, 
+        double aperture=0, 
+        double focus_distance=1, 
         double shutter_start=0, 
         double shutter_end=0
     )
@@ -798,8 +951,7 @@ vec3d trace(const scene& scn, const ray& r, int depth)
 
     intersection crossover;
     if (!scn.intersect(r, 0.001, infinity, crossover)) {
-        double t = 0.5 * (r.direction().normalize().y() + 1.0);
-        return (1.0 - t) * vec3d(1.0, 1.0, 1.0) + t * vec3d(0.5, 0.7, 1.0);
+        return vec3d(0, 0, 0);
     }
 
     ray next_r;
@@ -859,6 +1011,26 @@ scene random_scene()
 }
 
 
+scene cornell_box()
+{
+    scene scn;
+
+    material* red_diffuse = new lambertian(vec3d(0.65, 0.05, 0.05));
+    material* green_diffuse = new lambertian(vec3d(0.12, 0.45, 0.15));
+    material* white_diffuse = new lambertian(vec3d(0.75, 0.75, 0.75));
+    material* area_light = new light(vec3d(30, 30, 30));
+
+    scn.add(new planeyz(0, 555, 0, 555, 555, green_diffuse));
+    scn.add(new planeyz(0, 555, 0, 555, 0, red_diffuse));
+    scn.add(new planexz(0, 555, 0, 555, 0, white_diffuse));
+    scn.add(new planexz(0, 555, 0, 555, 555, white_diffuse));
+    scn.add(new planexy(0, 555, 0, 555, 555, white_diffuse));
+
+    scn.add(new planexz(213, 343, 227, 332, 554, area_light));
+    return scn;
+}
+
+
 void render_image(const char* path, int width, int height)
 {
     // material* blue_diffuse = new lambertian(vec3d(0.5, 0.5, 0.5));
@@ -871,24 +1043,25 @@ void render_image(const char* path, int width, int height)
     // object* small_ball = new sphere(sphere(vec3d(0, 0, -1), 0.5, blue_diffuse));
     // object* large_ball = new sphere(sphere(vec3d(0, -100.5, -1), 100, grey_diffuse));
 
-    scene scn = random_scene();
+    scene scn = cornell_box();
     // scn.add(left_ball);
     // scn.add(right_ball);
     // scn.add(small_ball);
     // scn.add(large_ball);
     // camera cam = camera(vec3d(3, 3, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78, 2.0, 5.2);
-    camera cam = camera(vec3d(13, 2, 3), vec3d(0, 0, 0), vec3d(0, 1, 0), 30, 1.78, 0.1, 10, 0, 1);
+    // camera cam = camera(vec3d(13, 2, 3), vec3d(0, 0, 0), vec3d(0, 1, 0), 30, 1.78, 0.1, 10, 0, 1);
+    camera cam = camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
 
-    int spp = 10;
+    int spp = 10000;
     int max_depth = 10;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
     printf("[INFO] start render...\n");
     clock_t start = clock();
 
-#pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < height; i++) {
         printf("\rRendering (%d spp) %5.2f%%", spp, 100. * i / (height - 1));
+    #pragma omp parallel for
         for (int j = 0; j < width; j++) {
             vec3d color = vec3d(0, 0, 0);
             for (int k = 0; k < spp; k++) {
@@ -916,7 +1089,7 @@ void render_image(const char* path, int width, int height)
 
 int main(int argc, char* argv[])
 {
-    int width = 1920, height = 1080;
+    int width = 1024, height = 1024;
     render_image("C:/Users/Cronix/Documents/cronix_dev/raytracing/output.png", width, height);
     return 0;
 }
