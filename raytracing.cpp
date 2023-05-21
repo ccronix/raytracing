@@ -4,6 +4,8 @@
 #include <omp.h>
 #include <vector>
 #include <limits>
+
+#include <ctime>
 #include <cstdio>
 #include <cstdlib>
 
@@ -570,6 +572,7 @@ void render_image(const char* path, int width, int height)
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
     printf("[INFO] start render...\n");
+    clock_t start = clock();
 
 #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < height; i++) {
@@ -593,7 +596,7 @@ void render_image(const char* path, int width, int height)
     }
     stbi_flip_vertically_on_write(true);
     stbi_write_png(path, width, height, 3, data, 0);
-    printf("\n[INFO] render done.\n");
+    printf("\n[INFO] render done, using %f sec.\n", float(clock() - start) / CLOCKS_PER_SEC);
     free(data);
     data = NULL;
 }
