@@ -140,21 +140,25 @@ class ray {
 
 public:
     ray () {}
-    ray (vec3d orig, vec3d dir) 
+    ray (vec3d orig, vec3d dir, double tm=0) 
     {
         this->orig = orig;
         this->dir = dir;
+        this->tm = tm;
     }
 
     vec3d origin() const { return orig; }
 
     vec3d direction() const { return dir; }
 
+    double time() const { return tm; }
+
     vec3d at(double t) const { return orig + t * dir; }
 
 private:
     vec3d orig;
     vec3d dir;
+    double tm;
 };
 
 
@@ -200,7 +204,7 @@ public:
         if (near_zero(next)) {
             next = crossover.normal;
         }
-        scatter = ray(crossover.position, next);
+        scatter = ray(crossover.position, next, r.time());
         attenuation = albedo;
         return true;
     }
@@ -223,7 +227,7 @@ public:
     {
         vec3d next = reflect(r.direction().normalize(), crossover.normal);
         vec3d fuzz = roughness * random_shpere();
-        scatter = ray(crossover.position, next + fuzz);
+        scatter = ray(crossover.position, next + fuzz, r.time());
         attenuation = albedo;
         return scatter.direction().dot(crossover.normal) > 0;
     }
@@ -254,7 +258,7 @@ public:
         else {
             referaction =  refract(next, crossover.normal, refract_ratio);
         }
-        scatter = ray(crossover.position, referaction);
+        scatter = ray(crossover.position, referaction, r.time());
         return true;
     }
 
@@ -321,6 +325,61 @@ public:
 };
 
 
+class msphere : public object {
+
+public:
+    vec3d center0, center1;
+    double start, end;
+    double radius;
+    material* mat;
+
+    msphere() {}
+
+    msphere(vec3d center0, vec3d center1, double start, double end, double radius, material* mat) 
+    {
+        this->center0 = center0;
+        this->center1 = center1;
+        this->start = start;
+        this->end = end;
+        this->radius = radius;
+        this->mat = mat;
+    }
+
+    vec3d center(double time) const
+    {
+        return center0 + ((time - start) / (end - start)) * (center1 - center0);
+    }
+
+    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
+    {
+        vec3d oc = r.origin() - center(r.time());
+        double a = r.direction().dot(r.direction());
+        double b = 2.0 * oc.dot(r.direction());
+        double c = oc.dot(oc) - radius * radius;
+        double discriminant = b * b - 4 * a * c;
+
+        if (discriminant < 0) {
+            return false;
+        }
+
+        double root = (-b - sqrt(discriminant)) / (a * 2);
+        
+        if (root < t_min || root > t_max) {
+            root = (-b + sqrt(discriminant)) / (a * 2);
+            if (root < t_min || root > t_max) {
+                return false; 
+            }
+        }
+        crossover.t = root;
+        crossover.position = r.at(root);
+        vec3d outward_normal = (crossover.position - center(r.time())) / radius;
+        crossover.set_face_normal(r, outward_normal);
+        crossover.mat = mat;
+        return true;
+    }
+};
+
+
 class scene : public object {
 
 public:
@@ -365,7 +424,17 @@ public:
 
     camera() {}
 
-    camera(vec3d position, vec3d lookat, vec3d up, double fov, double aspect_ratio, double aperture, double focus_distance)
+    camera(
+        vec3d position, 
+        vec3d lookat, 
+        vec3d up, 
+        double fov, 
+        double aspect_ratio, 
+        double aperture, 
+        double focus_distance, 
+        double shutter_start=0, 
+        double shutter_end=0
+    )
     {
         this->position = position;
         this->lookat = lookat;
@@ -374,6 +443,8 @@ public:
         this->aspect_ratio = aspect_ratio;
         this->aperture = aperture;
         this->focus_distance = focus_distance;
+        this->shutter_start = shutter_start;
+        this->shutter_end = shutter_end;
 
         double arc_fov = degree_to_arc(fov);
         double sensor_h = tan(arc_fov / 2) * 2;
@@ -394,7 +465,7 @@ public:
         vec3d defocus = lens_radius * random_disk();
         vec3d offset = u * defocus.x() + v * defocus.y();
         vec3d direction = left_bottom + x * horizontal + y * vertical - position - offset;
-        return ray(position + offset, direction);
+        return ray(position + offset, direction, random(shutter_start, shutter_end));
     }
 
 private:
@@ -403,6 +474,8 @@ private:
     vec3d vertical;
     vec3d u, v, w;
     double lens_radius;
+    double shutter_start;
+    double shutter_end;
 };
 
 
@@ -443,7 +516,8 @@ scene random_scene()
                 if (choose < 0.8) {
                     vec3d albedo = random_vector() * random_vector();
                     material* sphere_mat = new lambertian(albedo);
-                    scn.add(new sphere(center, 0.2, sphere_mat));
+                    vec3d center2 = center + vec3d(0, random(0, 0.5), 0);
+                    scn.add(new msphere(center, center2, 0, 1, 0.2, sphere_mat));
                 }
                 else if (choose < 0.95)
                 {
@@ -489,7 +563,7 @@ void render_image(const char* path, int width, int height)
     // scn.add(small_ball);
     // scn.add(large_ball);
     // camera cam = camera(vec3d(3, 3, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78, 2.0, 5.2);
-    camera cam = camera(vec3d(13, 2, 3), vec3d(0, 0, 0), vec3d(0, 1, 0), 30, 1.78, 0.1, 10);
+    camera cam = camera(vec3d(13, 2, 3), vec3d(0, 0, 0), vec3d(0, 1, 0), 30, 1.78, 0.1, 10, 0, 1);
 
     int spp = 100;
     int max_depth = 10;
