@@ -222,10 +222,16 @@ public:
 class checker : public texture {
 
 public:
-    texture* even;
-    texture* odds;
+    texture* even = new constant(0, 0, 0);
+    texture* odds = new constant(1, 1, 1);
 
     checker() {}
+
+    ~checker()
+    {
+        if (even != nullptr) delete even;
+        if (odds != nullptr) delete odds;
+    }
 
     checker(texture* even, texture* odds)
     {
@@ -284,12 +290,18 @@ public:
 class metal : public material {
 
 public:
-    vec3d albedo;
+    texture* base_color;
     double roughness;
 
     metal(const vec3d& color, double roughness) 
     {
-        albedo = color;
+        base_color = new constant(color);
+        this->roughness = roughness < 1 ? roughness : 1;
+    }
+
+    metal(texture* tex, double roughness) 
+    {
+        base_color = tex;
         this->roughness = roughness < 1 ? roughness : 1;
     }
 
@@ -298,7 +310,7 @@ public:
         vec3d next = reflect(r.direction().normalize(), crossover.normal);
         vec3d fuzz = roughness * random_shpere();
         scatter = ray(crossover.position, next + fuzz, r.time());
-        attenuation = albedo;
+        attenuation = base_color->color(crossover.position, crossover.uv_coord);
         return scatter.direction().dot(crossover.normal) > 0;
     }
 };
