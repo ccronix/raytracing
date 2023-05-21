@@ -515,7 +515,7 @@ public:
 };
 
 
-class bvh : public object{
+class bvh : public object {
 
 public:
     object* left;
@@ -524,7 +524,7 @@ public:
 
     bvh() {}
 
-    bvh(const scene& scn, double start, double end) : bvh(scn.objects, 0, scn.objects.size(), start, end) {}
+    bvh(const scene& scn, double start=0, double end=0) : bvh(scn.objects, 0, scn.objects.size(), start, end) {}
 
     bvh(const std::vector<object*>& sources, int first, int last, double start, double end)
     {
@@ -761,7 +761,7 @@ void render_image(const char* path, int width, int height)
     // camera cam = camera(vec3d(3, 3, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78, 2.0, 5.2);
     camera cam = camera(vec3d(13, 2, 3), vec3d(0, 0, 0), vec3d(0, 1, 0), 30, 1.78, 0.1, 10, 0, 1);
 
-    int spp = 100;
+    int spp = 10;
     int max_depth = 10;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
