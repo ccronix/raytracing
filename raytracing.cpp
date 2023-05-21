@@ -530,6 +530,7 @@ public:
         crossover.position = r.at(root);
         vec3d outward_normal = (crossover.position - center(r.time())) / radius;
         crossover.set_face_normal(r, outward_normal);
+        crossover.uv_coord = uv(outward_normal);
         crossover.mat = mat;
         return true;
     }
@@ -546,6 +547,16 @@ public:
 
         bbox = surrounding_box(bbox_start, bbox_end);
         return true;
+    }
+
+private:
+    static vec2d uv(const vec3d& position)
+    {
+        double theta = acos(-position.y());
+        double phi = atan2(-position.z(), position.x()) + pi;
+        double u = phi / (2 * pi);
+        double v = theta / pi;
+        return vec2d(u, v);
     }
 };
 
