@@ -484,6 +484,7 @@ private:
 class object {
 
 public:
+    virtual ~object() {}
     virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const = 0;
     virtual bool bounding_box(double start, double end, aabb& bbox) const = 0;
 };
@@ -836,6 +837,68 @@ public:
 };
 
 
+class box : public object {
+
+public:
+    vec3d minimum;
+    vec3d maximum;
+
+    box() {}
+
+    box(const vec3d& minimum, const vec3d& maximum, material* mat)
+    {
+        this->minimum = minimum;
+        this->maximum = maximum;
+
+        xy0 = new planexy(minimum.x(), maximum.x(), minimum.y(), maximum.y(), maximum.z(), mat);
+        xy1 = new planexy(minimum.x(), maximum.x(), minimum.y(), maximum.y(), minimum.z(), mat);
+
+        xz0 = new planexz(minimum.x(), maximum.x(), minimum.z(), maximum.z(), maximum.y(), mat);
+        xz1 = new planexz(minimum.x(), maximum.x(), minimum.z(), maximum.z(), minimum.y(), mat);
+
+        yz0 = new planeyz(minimum.y(), maximum.y(), minimum.z(), maximum.z(), maximum.x(), mat);
+        yz1 = new planeyz(minimum.y(), maximum.y(), minimum.z(), maximum.z(), minimum.x(), mat);
+
+        sides.add(xy0);
+        sides.add(xy1);
+        sides.add(xz0);
+        sides.add(xz1);
+        sides.add(yz0);
+        sides.add(yz1);
+    }
+
+    virtual ~box() override
+    {
+        delete xy0;
+        delete xy1;
+        delete xz0;
+        delete xz1;
+        delete yz0;
+        delete yz1;
+    }
+
+    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
+    {
+        return sides.intersect(r, t_min, t_max, crossover);
+    }
+
+    virtual bool bounding_box(double start, double end, aabb& bbox) const override
+    {
+        bbox = aabb(minimum, maximum);
+        return true;
+    }
+
+private:
+    scene sides;
+    object* xy0 = nullptr;
+    object* xy1 = nullptr;
+    object* xz0 = nullptr;
+    object* xz1 = nullptr;
+    object* yz0 = nullptr;
+    object* yz1 = nullptr;
+};
+
+
 class bvh : public object {
 
 public:
@@ -1077,8 +1140,13 @@ scene cornell_box()
     scn.add(new planexz(0, 555, 0, 555, 555, white_diffuse));
     scn.add(new planexy(0, 555, 0, 555, 555, white_diffuse));
 
+    scn.add(new box(vec3d(130, 0, 65), vec3d(295, 165, 230), white_diffuse));
+    scn.add(new box(vec3d(265, 0, 295), vec3d(430, 330, 460), white_diffuse));
+
     scn.add(new planexz(213, 343, 227, 332, 554, area_light));
-    return scn;
+    bvh* bvh_scn = new bvh(scn, 0, 1);
+    return scene(bvh_scn);
+    // return scn;
 }
 
 
