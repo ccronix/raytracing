@@ -427,6 +427,25 @@ public:
 };
 
 
+class fog : public material {
+
+public:
+    texture* base_color;
+
+    fog(vec3d color) { base_color = new constant(color); }
+
+    fog(texture* tex) { base_color = tex; }
+
+    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
+    {
+        scatter = ray(crossover.position, random_shpere(), r.time());
+        attenuation = base_color->color(crossover.position, crossover.uv_coord);
+        return true;
+    }    
+
+};
+
+
 class aabb {
 
 public:
@@ -785,6 +804,76 @@ public:
         bbox = aabb(vec3d(k - 0.001, y0, z0), vec3d(k + 0.001, y1, z1));
         return true;
     }
+};
+
+
+class volume : public object {
+
+public:
+    volume(object* surface, double density, texture* tex)
+    {
+        this->surface = surface;
+        mat = new fog(tex);
+        neg_inv_d = -1.0 / density;
+    }
+
+    volume(object* surface, double density, const vec3d& color)
+    {
+        this->surface = surface;
+        mat = new fog(color);
+        neg_inv_d = -1.0 / density;
+    }
+
+    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
+    {
+        intersection crossover1, crossover2;
+
+        if (!surface->intersect(r, -infinity, infinity, crossover1)) {
+            return false;
+        }
+        if (!surface->intersect(r, crossover1.t + 0.0001, infinity, crossover2)) {
+            return false;
+        }
+
+        if (crossover1.t < t_min) {
+            crossover1.t = t_min;
+        }
+        if (crossover2.t > t_max) {
+            crossover2.t = t_max;
+        }
+        
+        if (crossover1.t >= crossover2.t) {
+            return false;
+        }
+        if (crossover1.t < 0) {
+            crossover1.t = 0;
+        }
+
+        double ray_length = r.direction().length();
+        double inner_length = (crossover2.t - crossover1.t) * ray_length;
+        double intersect_distance = neg_inv_d * log(random());
+
+        if (intersect_distance > inner_length) {
+            return false;
+        }
+
+        crossover.t = crossover1.t + intersect_distance / ray_length;
+        crossover.position = r.at(crossover.t);
+        crossover.normal = vec3d(1, 0, 0);
+        crossover.frontward = false;
+        crossover.mat = mat;
+        return true;
+    }
+
+    virtual bool bounding_box(double start, double end, aabb& bbox) const override
+    {
+        return surface->bounding_box(start, end, bbox);
+    }
+
+private:
+    object* surface;
+    material* mat;
+    double neg_inv_d;
 };
 
 
