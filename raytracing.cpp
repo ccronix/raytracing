@@ -1,3 +1,5 @@
+#define STB_IMAGE_STATIC
+#define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_STATIC
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 
@@ -11,6 +13,7 @@
 #include <cstdlib>
 
 #include "algebra/algebra.hpp"
+#include "stb/stb_image.hpp"
 #include "stb/stb_image_write.hpp"
 
 const double infinity = std::numeric_limits<double>::infinity();
@@ -197,6 +200,7 @@ public:
 class texture {
 
 public:
+    virtual ~texture() {}
     virtual vec3d color(const vec3d& position, const vec2d& uv_coord) const = 0;
 };
 
@@ -227,7 +231,7 @@ public:
 
     checker() {}
 
-    ~checker()
+    virtual ~checker() override
     {
         if (even != nullptr) delete even;
         if (odds != nullptr) delete odds;
@@ -258,6 +262,56 @@ public:
 };
 
 
+class image : public texture {
+
+public:
+    image() {}
+
+    image(const char* path)
+    {
+        this->path = path;
+        data = stbi_load(path, &width, &height, &channels, 0);
+        if (!data) {
+            fprintf(stderr, "[ERROR] can not load image: %s\n", path);
+        }
+    }
+
+    virtual ~image() override { stbi_image_free(data); }
+
+    virtual vec3d color(const vec3d& position, const vec2d& uv_coord) const override
+    {
+        if (data == nullptr) {
+            return vec3d(0, 1, 1);
+        }
+
+        double u = clamp(uv_coord.u(), 0, 1);
+        double v = 1.0 - clamp(uv_coord.v(), 0, 1);
+
+        int x = int(u * width);
+        int y = int(v * height);
+
+        if (x >= width ) {
+            x = width - 1;
+        }
+        if (y >= height) {
+            y = height - 1;
+        }
+
+        const double scale = 1.0 / 255;
+        int index = y * width * channels + x * channels;
+        unsigned char* base = data + index;
+        return vec3d(base[0], base[1], base[2]) * scale;
+    }
+
+private:
+    const char* path;
+    unsigned char* data = nullptr;
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+};
+
+
 class material {
 
 public:
@@ -278,9 +332,6 @@ public:
     virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
     {
         vec3d next = crossover.normal + random_shpere().normalize();
-        if (near_zero(next)) {
-            next = crossover.normal;
-        }
         scatter = ray(crossover.position, next, r.time());
         attenuation = base_color->color(crossover.position, crossover.uv_coord);
         return true;
@@ -1052,7 +1103,7 @@ void render_image(const char* path, int width, int height)
     // camera cam = camera(vec3d(13, 2, 3), vec3d(0, 0, 0), vec3d(0, 1, 0), 30, 1.78, 0.1, 10, 0, 1);
     camera cam = camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
 
-    int spp = 10000;
+    int spp = 100;
     int max_depth = 10;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
