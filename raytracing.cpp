@@ -886,7 +886,18 @@ public:
 
     scene(object* obj) { add(obj); }
 
+    scene(scene& scn) { objects = scn.objects; }
+
+    scene(scene&& scn) { objects = std::move(scn.objects); }
+
     void add(object* obj) { objects.push_back(obj); }
+
+    void add(const scene& scn)
+    {
+        for (auto& object : scn.objects) {
+            objects.push_back(object);
+        }
+    }
 
     void clear() { objects.clear(); }
 
@@ -1361,6 +1372,58 @@ scene cornell_box()
 }
 
 
+scene all_feature_test()
+{
+    scene scn;
+    scene ground_boxes;
+    material* white_mat = new lambertian(vec3d(0.73, 0.73, 0.73));
+    material* ground_mat = new lambertian(vec3d(0.48, 0.83, 0.53));
+    material* area_light = new light(vec3d(7, 7, 7));
+    for (int i = 0; i < 20; i++) {
+        for (int j = 0; j < 20; j++) {
+            double w = 100;
+            double x0 = -1000 + i * w;
+            double z0 = -1000 + j * w;
+            double y0 = 0;
+            double x1 = x0 + w;
+            double z1 = z0 + w;
+            double y1 = random(1, 101);
+            ground_boxes.add(new box(vec3d(x0, y0, z0), vec3d(x1, y1, z1), ground_mat));
+        }
+    }
+
+    scn.add(ground_boxes);
+    scn.add(new planexz(123, 423, 147, 412, 554, area_light));
+
+    vec3d center_start = vec3d(400, 400, 200);
+    vec3d center_end = center_start + vec3d(100, 0, 0);
+    material* motion_ball_mat = new lambertian(vec3d(0.7, 0.3, 0.1));
+    scn.add(new msphere(center_start, center_end, 0, 1, 50, motion_ball_mat));
+
+    scn.add(new sphere(vec3d(260, 150, 45), 50, new dielectric(1.5)));
+    scn.add(new sphere(vec3d(0, 150, 145), 50, new metal(vec3d(0.8, 0.8, 0.9), 1)));
+
+    object* background = new sphere(vec3d(0, 0, 0), 5000, new dielectric(1.5));
+    scn.add(new volume(background, 0.0002, vec3d(1, 1, 1)));
+
+    background = new sphere(vec3d(360,150,145), 70, new dielectric(1.5));
+    scn.add(background);
+    scn.add(new volume(background, 0.2, vec3d(0.2, 0.4, 0.9)));
+
+    material* img_mat = new lambertian(new image("C:/Users/Cronix/Pictures/image.jpg"));
+    scn.add(new sphere(vec3d(400, 200, 400), 100, img_mat));
+    scn.add(new sphere(vec3d(220, 280, 300), 50, new metal(vec3d(1, 1, 1), 0)));
+
+    scene vol_boxes;
+    for (int i = 0; i < 1000; i++) {
+        vol_boxes.add(new sphere(random_vector(0, 165), 10, white_mat));
+    }
+    scn.add(new translate(new rotatey(new bvh(vol_boxes), 15), vec3d(-100, 270, 395)));
+    bvh* bvh_scn = new bvh(scn, 0, 1);
+    return scene(bvh_scn);
+}
+
+
 void render_image(const char* path, int width, int height)
 {
     // material* blue_diffuse = new lambertian(vec3d(0.5, 0.5, 0.5));
@@ -1373,14 +1436,15 @@ void render_image(const char* path, int width, int height)
     // object* small_ball = new sphere(sphere(vec3d(0, 0, -1), 0.5, blue_diffuse));
     // object* large_ball = new sphere(sphere(vec3d(0, -100.5, -1), 100, grey_diffuse));
 
-    scene scn = cornell_box();
+    scene scn = all_feature_test();
     // scn.add(left_ball);
     // scn.add(right_ball);
     // scn.add(small_ball);
     // scn.add(large_ball);
     // camera cam = camera(vec3d(3, 3, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78, 2.0, 5.2);
     // camera cam = camera(vec3d(13, 2, 3), vec3d(0, 0, 0), vec3d(0, 1, 0), 30, 1.78, 0.1, 10, 0, 1);
-    camera cam = camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
+    // camera cam = camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
+    camera cam = camera(vec3d(478, 278, -600), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
 
     int spp = 100;
     int max_depth = 10;
@@ -1419,7 +1483,7 @@ void render_image(const char* path, int width, int height)
 
 int main(int argc, char* argv[])
 {
-    int width = 1024, height = 1024;
+    int width = 1920, height = 1080;
     render_image("C:/Users/Cronix/Documents/cronix_dev/raytracing/output.png", width, height);
     return 0;
 }
