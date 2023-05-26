@@ -62,7 +62,7 @@ public:
         return *this *= 1 / v;
     }
 
-    vec4 normalize(vec4 v ) {
+    vec4 normalize(vec4 v ) const {
         return v / v.length(); 
     }
 

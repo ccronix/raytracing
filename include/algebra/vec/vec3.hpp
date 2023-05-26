@@ -57,7 +57,7 @@ public:
         return *this *= 1 / v;
     }
 
-    vec3 normalize() {
+    vec3 normalize() const {
         return *this / length(); 
     }
 
