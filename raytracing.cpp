@@ -101,6 +101,18 @@ vec3d random_disk()
 }
 
 
+vec3d random_cosine() {
+    double r1 = random();
+    double r2 = random();
+    double z = sqrt(1 - r2);
+
+    double phi = 2 * pi * r1;
+    double x = cos(phi) * sqrt(r2);
+    double y = sin(phi) * sqrt(r2);
+    return vec3d(x, y, z);
+}
+
+
 vec3d gamma(vec3d value, double power)
 {
     double x = pow(value.x(), power);
@@ -174,12 +186,73 @@ private:
 };
 
 
+class onb {
+
+public:
+    onb() {}
+
+    vec3d operator [] (int index) const {return axis[index]; }
+
+    vec3d u() const { return axis[0]; }
+
+    vec3d v() const { return axis[1]; }
+
+    vec3d w() const { return axis[2]; }
+
+    vec3d local(double x, double y, double z) const { return x * u() + y * v() + z * w(); }
+
+    vec3d local(const vec3d& vec) const { return vec.x() * u() + vec.y() * v() + vec.z() * w(); }
+
+    void build(const vec3d& vec) 
+    {
+        axis[2] = vec.normalize();
+        vec3d x = (fabs(w().x()) > 0.9) ? vec3d(0, 1, 0) : vec3d(1, 0, 0);
+        axis[1] = w().cross(x).normalize();
+        axis[0] = w().cross(v());
+    }
+
+private:
+    vec3d axis[3];
+};
+
+
+class pdf {
+
+public:
+    virtual ~pdf() {}
+
+    virtual double value(const vec3d& direction) const = 0;
+
+    virtual vec3d generate() const = 0;
+};
+
+
+class cos_pdf : public pdf {
+
+public:
+    cos_pdf(const vec3d& w) { uvw.build(w); }
+
+    virtual double value(const vec3d& direction) const override
+    {
+        double cosine = direction.normalize().dot(uvw.w());
+        return (cosine <=0) ? 0 : cosine / pi;
+    }
+
+    virtual vec3d generate() const override
+    {
+        return uvw.local(random_cosine());
+    }
+
+private:
+    onb uvw;
+};
+
+
 class material;
 
 
-class intersection {
+struct intersection {
 
-public:
     vec3d position;
     vec3d normal;
     vec2d uv_coord;
@@ -187,13 +260,20 @@ public:
     material* mat;
     bool frontward;
 
-    intersection() {}
-
     void set_face_normal(const ray& r, const vec3d& outward_normal)
     {
         frontward = r.direction().dot(outward_normal) < 0;
         normal = frontward ? outward_normal : -outward_normal;
     }
+};
+
+
+struct scatter {
+
+ray specular;
+bool is_spec;
+pdf* pdf_ptr;
+vec3d attenuation;
 };
 
 
@@ -315,8 +395,9 @@ private:
 class material {
 
 public:
-    virtual vec3d emit(const vec3d& position, const vec2d uv_coord) const { return vec3d(0, 0, 0); }
-    virtual bool shading(const ray&r, const intersection& crossover, vec3d& attenuation, ray& scatter) const = 0;
+    virtual vec3d emit(const ray&r, const intersection& crossover, const vec3d& position, const vec2d uv_coord) const { return vec3d(0, 0, 0); }
+    virtual bool shading(const ray&r, const intersection& crossover, scatter& scatter) const { return false; };
+    virtual double shading_pdf(const ray& r, const intersection& crossover, const ray& scatter) const { return 0.0; };
 };
 
 
@@ -329,12 +410,18 @@ public:
 
     lambertian(texture* tex) { base_color = tex; }
 
-    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
+    virtual bool shading(const ray& r, const intersection& crossover, scatter& scatter) const override
     {
-        vec3d next = crossover.normal + random_shpere().normalize();
-        scatter = ray(crossover.position, next, r.time());
-        attenuation = base_color->color(crossover.position, crossover.uv_coord);
+        scatter.is_spec = false;
+        scatter.attenuation = base_color->color(crossover.position, crossover.uv_coord);
+        scatter.pdf_ptr = new cos_pdf(crossover.normal);
         return true;
+    }
+
+    virtual double shading_pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
+    {
+        double cosine = crossover.normal.dot(scatter.direction().normalize());
+        return cosine < 0 ? 0 : cosine / pi;
     }
 };
 
@@ -357,13 +444,15 @@ public:
         this->roughness = roughness < 1 ? roughness : 1;
     }
 
-    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
+    virtual bool shading(const ray& r, const intersection& crossover, scatter& scatter) const override
     {
         vec3d next = reflect(r.direction().normalize(), crossover.normal);
         vec3d fuzz = roughness * random_shpere();
-        scatter = ray(crossover.position, next + fuzz, r.time());
-        attenuation = base_color->color(crossover.position, crossover.uv_coord);
-        return scatter.direction().dot(crossover.normal) > 0;
+        scatter.specular = ray(crossover.position, next + fuzz, r.time());
+        scatter.attenuation = base_color->color(crossover.position, crossover.uv_coord);
+        scatter.pdf_ptr = nullptr;
+        scatter.is_spec = true;
+        return true;
     }
 };
 
@@ -375,9 +464,11 @@ public:
 
     dielectric(double ior) { this->ior = ior; }
 
-    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
+    virtual bool shading(const ray& r, const intersection& crossover, scatter& scatter) const override
     {
-        attenuation = vec3d(1, 1, 1);
+        scatter.is_spec = true;
+        scatter.pdf_ptr = nullptr;
+        scatter.attenuation = vec3d(1, 1, 1);
         double refract_ratio = crossover.frontward ? (1.0 / ior) : ior;
 
         vec3d next = r.direction().normalize();
@@ -392,7 +483,7 @@ public:
         else {
             referaction =  refract(next, crossover.normal, refract_ratio);
         }
-        scatter = ray(crossover.position, referaction, r.time());
+        scatter.specular = ray(crossover.position, referaction, r.time());
         return true;
     }
 
@@ -415,12 +506,17 @@ public:
 
     light(const vec3d& color) { emission = new constant(color); }
 
-    virtual vec3d emit(const vec3d& position, const vec2d uv_coord) const override
-    {
-        return emission->color(position, uv_coord);
+    virtual vec3d emit(const ray&r, const intersection& crossover, const vec3d& position, const vec2d uv_coord) const override
+    {        
+        if (crossover.frontward) {
+            return emission->color(position, uv_coord);
+        }
+        else {
+            return vec3d(0, 0, 0); 
+        }
     }
 
-    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
+    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const
     {
         return false;
     }
@@ -436,7 +532,7 @@ public:
 
     fog(texture* tex) { base_color = tex; }
 
-    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const override
+    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const
     {
         scatter = ray(crossover.position, random_shpere(), r.time());
         attenuation = base_color->color(crossover.position, crossover.uv_coord);
@@ -506,6 +602,66 @@ public:
     virtual ~object() {}
     virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const = 0;
     virtual bool bounding_box(double start, double end, aabb& bbox) const = 0;
+    virtual double pdf(const vec3d& origin, const vec3d& value) const { return 0.0; }
+    virtual vec3d rand(const vec3d& origin) const { return vec3d(1, 0, 0); }
+};
+
+
+class obj_pdf : public pdf {
+
+public:
+    obj_pdf(object* obj, const vec3d& origin)
+    {
+        this->obj = obj;
+        this->origin = origin;
+    }
+
+    virtual double value(const vec3d& direction) const override
+    {
+        return obj->pdf(origin, direction);
+    }
+
+    virtual vec3d generate() const override
+    {
+        return obj->rand(origin);
+    }
+
+
+
+private:
+    object* obj;
+    vec3d origin;
+};
+
+
+class mix_pdf : public pdf {
+
+public:
+    mix_pdf(pdf* pdf0, pdf* pdf1)
+    {
+        this->pdf0 = pdf0;
+        this->pdf1 = pdf1;
+    }
+
+    virtual double value(const vec3d& direction) const override
+    {
+        return 0.5 * (pdf0->value(direction) + pdf1->value(direction));
+    }
+
+    virtual vec3d generate() const override
+    {
+        if (random() < 0.5) {
+            return pdf0->generate();
+        }
+        else {
+            return pdf1->generate();
+        }
+    }
+
+
+private:
+    pdf* pdf0;
+    pdf* pdf1;
 };
 
 
@@ -752,6 +908,24 @@ public:
     {
         bbox = aabb(vec3d(x0, k - 0.001, z0), vec3d(x1, k + 0.001, z1));
         return true;
+    }
+
+    virtual double pdf(const vec3d& origin, const vec3d& value) const override
+    {
+        intersection crossover;
+        if (!this->intersect(ray(origin, value), 0.001, infinity, crossover)) {
+            return 0;
+        }
+
+        double area = (x1 - x0) * (z1 - z0);
+        double distance_sqr = crossover.t * crossover.t * value.length() * value.length();
+        double cosine = fabs(value.dot(crossover.normal) / value.length());
+        return distance_sqr / (cosine * area);
+    }
+    virtual vec3d rand(const vec3d& origin) const override
+    {
+        vec3d point = vec3d(random(x0, x1), k, random(z0, z1));
+        return point - origin;
     }
 };
 
@@ -1114,6 +1288,34 @@ private:
 };
 
 
+class flip : public object {
+
+public:
+    flip(object* obj) { this->obj = obj; }
+
+    virtual bool intersect(const ray& r, double t_min, double t_max, intersection& crossover) const override
+    {
+        if (!obj->intersect(r, t_min, t_max, crossover)) {
+            return false;
+        }
+        crossover.frontward = !crossover.frontward;
+        return true;
+    }
+
+    virtual bool bounding_box(double start, double end, aabb& bbox) const override
+    {
+        return obj->bounding_box(start, end, bbox);
+    }
+
+    virtual double pdf(const vec3d& origin, const vec3d& value) const override { return obj->pdf(origin, value); }
+
+    virtual vec3d rand(const vec3d& origin) const override { return obj->rand(origin); }
+
+private:
+    object* obj;
+};
+
+
 class bvh : public object {
 
 public:
@@ -1272,7 +1474,7 @@ private:
 };
 
 
-vec3d trace(const scene& scn, const ray& r, int depth)
+vec3d trace(const scene& scn, const ray& r, object* lights,  int depth)
 {
     if (depth <= 0) {
         return vec3d(0, 0, 0);
@@ -1284,12 +1486,26 @@ vec3d trace(const scene& scn, const ray& r, int depth)
     }
 
     ray next_r;
-    vec3d attenuation;
-    vec3d emission = crossover.mat->emit(crossover.position, crossover.uv_coord);
-    if (!crossover.mat->shading(r, crossover, attenuation, next_r)) {
+    scatter scattering;
+    vec3d emission = crossover.mat->emit(r, crossover, crossover.position, crossover.uv_coord);
+    if (!crossover.mat->shading(r, crossover, scattering)) {
         return emission;
     }
-    return emission + attenuation * trace(scn, next_r, depth - 1);
+    if (scattering.is_spec) {
+        return scattering.attenuation * trace(scn, scattering.specular, lights, depth - 1);
+    }
+
+    obj_pdf* direct_pdf = new obj_pdf(lights, crossover.position);
+    mix_pdf mixture_pdf = mix_pdf(direct_pdf, scattering.pdf_ptr);
+    next_r = ray(crossover.position, mixture_pdf.generate(), r.time());
+    double pdf_value = mixture_pdf.value(next_r.direction());
+
+    if (scattering.pdf_ptr != nullptr) {
+        delete scattering.pdf_ptr;
+    }
+    delete direct_pdf;
+
+    return emission + scattering.attenuation * crossover.mat->shading_pdf(r, crossover, next_r) * trace(scn, next_r, lights, depth - 1) / pdf_value;
 }
 
 
@@ -1348,6 +1564,7 @@ scene cornell_box()
     material* green_diffuse = new lambertian(vec3d(0.12, 0.45, 0.15));
     material* white_diffuse = new lambertian(vec3d(0.75, 0.75, 0.75));
     material* area_light = new light(vec3d(30, 30, 30));
+    material* mirror = new metal(vec3d(1, 1, 1), 0);
 
     scn.add(new planeyz(0, 555, 0, 555, 555, green_diffuse));
     scn.add(new planeyz(0, 555, 0, 555, 0, red_diffuse));
@@ -1355,20 +1572,20 @@ scene cornell_box()
     scn.add(new planexz(0, 555, 0, 555, 555, white_diffuse));
     scn.add(new planexy(0, 555, 0, 555, 555, white_diffuse));
 
-    object* box1 = new box(vec3d(0, 0, 0), vec3d(165, 330, 165), white_diffuse);
+    object* box1 = new box(vec3d(0, 0, 0), vec3d(165, 330, 165), mirror);
     box1 = new rotatey(box1, 15);
     box1 = new translate(box1, vec3d(265, 0, 295));;
-    scn.add(box1);
+    // scn.add(box1);
 
     object* box2 = new box(vec3d(0, 0, 0), vec3d(165, 165, 165), white_diffuse);
     box2 = new rotatey(box2, -18);
     box2 = new translate(box2, vec3d(130, 0, 65));;
-    scn.add(box2);
+    // scn.add(box2);
 
-    scn.add(new planexz(213, 343, 227, 332, 554, area_light));
-    bvh* bvh_scn = new bvh(scn, 0, 1);
-    return scene(bvh_scn);
-    // return scn;
+    // scn.add(new flip(new planexz(213, 343, 227, 332, 554, area_light)));
+    // bvh* bvh_scn = new bvh(scn, 0, 1);
+    // return scene(bvh_scn);
+    return scn;
 }
 
 
@@ -1436,15 +1653,18 @@ void render_image(const char* path, int width, int height)
     // object* small_ball = new sphere(sphere(vec3d(0, 0, -1), 0.5, blue_diffuse));
     // object* large_ball = new sphere(sphere(vec3d(0, -100.5, -1), 100, grey_diffuse));
 
-    scene scn = all_feature_test();
+    scene scn = cornell_box();
+    material* area_light = new light(vec3d(30, 30, 30));
+    object* lights = new flip(new planexz(213, 343, 227, 332, 554, area_light));
+    scn.add(lights);
     // scn.add(left_ball);
     // scn.add(right_ball);
     // scn.add(small_ball);
     // scn.add(large_ball);
     // camera cam = camera(vec3d(3, 3, 2), vec3d(0, 0, -1), vec3d(0, 1, 0), 45, 1.78, 2.0, 5.2);
     // camera cam = camera(vec3d(13, 2, 3), vec3d(0, 0, 0), vec3d(0, 1, 0), 30, 1.78, 0.1, 10, 0, 1);
-    // camera cam = camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
-    camera cam = camera(vec3d(478, 278, -600), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
+    camera cam = camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
+    // camera cam = camera(vec3d(478, 278, -600), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
 
     int spp = 100;
     int max_depth = 10;
@@ -1461,9 +1681,17 @@ void render_image(const char* path, int width, int height)
             for (int k = 0; k < spp; k++) {
                 double x = double(j + random()) / (width - 1);
                 double y = double(i + random()) / (height - 1);
+
                 ray r = cam.emit(x, y);
-                color += trace(scn, r, max_depth);
+                vec3d sample = trace(scn, r, lights, max_depth);
+
+                if (sample.x() != sample.x() || sample.y() != sample.y() || sample.z() != sample.z()) {
+                    sample = vec3d(0, 0, 0);
+                }
+
+                color += sample;
             }
+
             color /= spp;
             color = clamp(color, 0, 1);
             color = gamma(color, 0.45);
@@ -1483,7 +1711,7 @@ void render_image(const char* path, int width, int height)
 
 int main(int argc, char* argv[])
 {
-    int width = 1920, height = 1080;
-    render_image("C:/Users/Cronix/Documents/cronix_dev/raytracing/output.png", width, height);
+    int width = 1024, height = 1024;
+    render_image("C:/Users/Cronix/Documents/cronix_dev/raytracing/output8.png", width, height);
     return 0;
 }
