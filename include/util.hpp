@@ -27,33 +27,33 @@ double degree_to_arc(double degree)
 }
 
 
-double random()
+double random_double()
 {
     return rand() / double(RAND_MAX);
 }
 
 
-double random(double min, double max)
+double random_double(double min, double max)
 {
-    return min + (max - min) * random();
+    return min + (max - min) * random_double();
 }
 
 
 int random_int(int min, int max)
 {
-    return int(random(min, max + 1));
+    return int(random_double(min, max + 1));
 }
 
 
 vec3d random_vector()
 {
-    return vec3d(random(), random(), random());
+    return vec3d(random_double(), random_double(), random_double());
 }
 
 
 vec3d random_vector(double min, double max)
 {
-    return vec3d(random(min, max), random(min, max), random(min, max));
+    return vec3d(random_double(min, max), random_double(min, max), random_double(min, max));
 }
 
 
@@ -85,7 +85,7 @@ vec3d random_hemisphere(const vec3d& normal)
 vec3d random_disk()
 {
     while (true) {
-        vec3d point = vec3d(random(-1, 1), random(-1, 1), 0);
+        vec3d point = vec3d(random_double(-1, 1), random_double(-1, 1), 0);
         double length = point.length();
         if (length * length >= 1) {
             continue;
@@ -96,8 +96,8 @@ vec3d random_disk()
 
 
 vec3d random_cosine() {
-    double r1 = random();
-    double r2 = random();
+    double r1 = random_double();
+    double r2 = random_double();
     double z = sqrt(1 - r2);
 
     double phi = 2 * pi * r1;

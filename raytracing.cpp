@@ -67,20 +67,20 @@ scene random_scene()
 
     for(int i = -11; i < 11; i++) {
         for (int j = -11; j < 11; j++) {
-            double choose = random();
-            vec3d center = vec3d(i + 0.9 * random(), 0.2, j + 0.9 * random());
+            double choose = random_double();
+            vec3d center = vec3d(i + 0.9 * random_double(), 0.2, j + 0.9 * random_double());
 
             if ((center - vec3d(4, 0.2, 0)).length() > 0.9) {
                 if (choose < 0.8) {
                     vec3d albedo = random_vector() * random_vector();
                     material* sphere_mat = new lambertian(albedo);
-                    vec3d center2 = center + vec3d(0, random(0, 0.5), 0);
+                    vec3d center2 = center + vec3d(0, random_double(0, 0.5), 0);
                     scn.add(new msphere(center, center2, 0, 1, 0.2, sphere_mat));
                 }
                 else if (choose < 0.95)
                 {
                     vec3d albedo = random_vector(0.5, 1);
-                    double roughness = random(0, 0.5);
+                    double roughness = random_double(0, 0.5);
                     material* sphere_mat = new metal(albedo, roughness);
                     scn.add(new sphere(center, 0.2, sphere_mat));
                 }
@@ -153,7 +153,7 @@ scene all_feature_test()
             double y0 = 0;
             double x1 = x0 + w;
             double z1 = z0 + w;
-            double y1 = random(1, 101);
+            double y1 = random_double(1, 101);
             ground_boxes.add(new box(vec3d(x0, y0, z0), vec3d(x1, y1, z1), ground_mat));
         }
     }
@@ -214,8 +214,8 @@ void render_image(const char* path, int width, int height)
         for (int j = 0; j < width; j++) {
             vec3d color = vec3d(0, 0, 0);
             for (int k = 0; k < spp; k++) {
-                double x = double(j + random()) / (width - 1);
-                double y = double(i + random()) / (height - 1);
+                double x = double(j + random_double()) / (width - 1);
+                double y = double(i + random_double()) / (height - 1);
 
                 ray r = cam.emit(x, y);
                 vec3d sample = trace(scn, r, lights, max_depth);

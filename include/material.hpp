@@ -93,7 +93,7 @@ public:
         bool not_refract = refract_ratio * sin_theta > 1.0;
 
         vec3d referaction;
-        if (not_refract || reflectance(cos_theta, refract_ratio) > random()) {
+        if (not_refract || reflectance(cos_theta, refract_ratio) > random_double()) {
             referaction = reflect(next, crossover.normal);
         }
         else {

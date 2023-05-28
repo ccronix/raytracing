@@ -269,7 +269,7 @@ public:
     }
     virtual vec3d rand(const vec3d& origin) const override
     {
-        vec3d point = vec3d(random(x0, x1), k, random(z0, z1));
+        vec3d point = vec3d(random_double(x0, x1), k, random_double(z0, z1));
         return point - origin;
     }
 };
@@ -370,7 +370,7 @@ public:
 
         double ray_length = r.direction.length();
         double inner_length = (crossover2.t - crossover1.t) * ray_length;
-        double intersect_distance = neg_inv_d * log(random());
+        double intersect_distance = neg_inv_d * log(random_double());
 
         if (intersect_distance > inner_length) {
             return false;

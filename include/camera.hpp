@@ -59,7 +59,7 @@ public:
         vec3d defocus = lens_radius * random_disk();
         vec3d offset = u * defocus.x() + v * defocus.y();
         vec3d direction = left_bottom + x * horizontal + y * vertical - position - offset;
-        return ray(position + offset, direction, random(shutter_start, shutter_end));
+        return ray(position + offset, direction, random_double(shutter_start, shutter_end));
     }
 
 private:

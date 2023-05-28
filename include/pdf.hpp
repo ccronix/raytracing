@@ -81,7 +81,7 @@ public:
 
     virtual vec3d generate() const override
     {
-        if (random() < 0.5) {
+        if (random_double() < 0.5) {
             return pdf0->generate();
         }
         else {
