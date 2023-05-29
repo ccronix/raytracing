@@ -139,6 +139,18 @@ vec3d clamp(vec3d value, double min, double max)
 }
 
 
+bool is_infinity(vec3d color)
+{
+    return (fabs(color.x()) == infinity) || (fabs(color.y()) == infinity) || (fabs(color.z()) == infinity);
+}
+
+
+bool is_nan(vec3d color)
+{
+    return isnan(color.x()) || isnan(color.y()) || isnan(color.z());
+}
+
+
 vec3d reflect(const vec3d& input, const vec3d& normal)
 {
     return input - 2 * input.dot(normal) * normal;
