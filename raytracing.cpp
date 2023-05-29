@@ -14,10 +14,13 @@
 #include "pdf.hpp"
 #include "bvh.hpp"
 #include "util.hpp"
+#include "scene.hpp"
 #include "camera.hpp"
+#include "loader.hpp"
 #include "object.hpp"
 #include "texture.hpp"
 #include "material.hpp"
+#include "polygon.hpp"
 #include "primitive.hpp"
 #include "transform.hpp"
 #include "intersection.hpp"
@@ -192,25 +195,30 @@ scene all_feature_test()
 
 void render_image(const char* path, int width, int height)
 {
-    scene scn = cornell_box();
+    scene scn;
 
-    material* area_light = new light(vec3d(30, 30, 30));
-    object* lights = new flip(new planexz(213, 343, 227, 332, 554, area_light));
+    loader obj_loader = loader("C:/Users/Cronix/Documents/cronix_dev/raytracing/object/fruit2.obj");
+    bvh* bvh_obj = new bvh(obj_loader.meshes());
+    scn.add(bvh_obj);
+
+    material* area_light = new light(vec3d(15, 15, 15));
+    object* lights = new flip(new planexz(-5, 5, -5, 5, 20, area_light));
     scn.add(lights);
 
-    camera cam = camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
+    camera cam = camera(vec3d(-1, 4, 2), vec3d(1, 0, -1), vec3d(0, 1, 0), 55, 1.78, 0, 1, 0, 1);
+    // camera cam = camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
     // camera cam = camera(vec3d(478, 278, -600), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
 
     int spp = 100;
     int max_depth = 10;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
-    printf("[INFO] start render...\n");
+    printf("[INFO] start render.../n");
     clock_t start = clock();
 
+#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < height; i++) {
         printf("\rRendering (%d spp) %5.2f%%", spp, 100. * i / (height - 1));
-    #pragma omp parallel for
         for (int j = 0; j < width; j++) {
             vec3d color = vec3d(0, 0, 0);
             for (int k = 0; k < spp; k++) {
@@ -220,7 +228,7 @@ void render_image(const char* path, int width, int height)
                 ray r = cam.emit(x, y);
                 vec3d sample = trace(scn, r, lights, max_depth);
 
-                if (sample.x() != sample.x() || sample.y() != sample.y() || sample.z() != sample.z()) {
+                if (is_nan(sample) || is_infinity(sample)) {
                     sample = vec3d(0, 0, 0);
                 }
 
@@ -246,7 +254,7 @@ void render_image(const char* path, int width, int height)
 
 int main(int argc, char* argv[])
 {
-    int width = 1024, height = 1024;
-    render_image("C:/Users/Cronix/Documents/cronix_dev/raytracing/output.png", width, height);
+    int width = 1920, height = 1080;
+    render_image("C:/Users/Cronix/Documents/cronix_dev/raytracing/output3.png", width, height);
     return 0;
 }
