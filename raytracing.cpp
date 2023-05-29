@@ -216,9 +216,9 @@ void render_image(const char* path, int width, int height)
     printf("[INFO] start render.../n");
     clock_t start = clock();
 
-#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < height; i++) {
         printf("\rRendering (%d spp) %5.2f%%", spp, 100. * i / (height - 1));
+    #pragma omp parallel for schedule(dynamic)
         for (int j = 0; j < width; j++) {
             vec3d color = vec3d(0, 0, 0);
             for (int k = 0; k < spp; k++) {
