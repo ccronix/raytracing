@@ -13,8 +13,6 @@
 class group : public object {
 
 public:
-    std::vector<object*> objects;
-
     group() {}
 
     group(object* obj) { add(obj); }
@@ -33,6 +31,8 @@ public:
     }
 
     void clear() { objects.clear(); }
+
+    std::vector<object*> content() const { return objects; }
 
     virtual bool intersect(const ray& r, intersection& crossover) const override
     {
@@ -67,4 +67,7 @@ public:
         }
         return true;
     }
+
+private:
+    std::vector<object*> objects;
 };

@@ -18,7 +18,7 @@ public:
 
     bvh() {}
 
-    bvh(const group& grp, double start=0, double end=0) : bvh(grp.objects, 0, grp.objects.size(), start, end) {}
+    bvh(const group& grp, double start=0, double end=0) : bvh(grp.content(), 0, grp.content().size(), start, end) {}
 
     bvh(const std::vector<object*>& sources, int first, int last, double start, double end)
     {
