@@ -5,7 +5,7 @@
 #include <vector>
 #include <string>
 
-#include "scene.hpp"
+#include "group.hpp"
 #include "polygon.hpp"
 #include "texture.hpp"
 #include "material.hpp"
@@ -36,11 +36,11 @@ public:
         load_mesh(reader);
     }
 
-    scene meshes() { return scn; }
+    group meshes() { return grp; }
 
 
 private:
-    scene scn;
+    group grp;
     std::string scene_path;
     std::vector<material*> mats;
 
@@ -116,7 +116,7 @@ private:
                 }
                 offset += face_num_vertices;
                 triangle* mesh_triangle = new triangle(vertices, mats[mat_id]);
-                scn.add(mesh_triangle);
+                grp.add(mesh_triangle);
             }
         }
     }

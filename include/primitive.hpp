@@ -2,7 +2,7 @@
 
 
 #include "aabb.hpp"
-#include "scene.hpp"
+#include "group.hpp"
 #include "object.hpp"
 #include "material.hpp"
 #include "intersection.hpp"
@@ -448,7 +448,7 @@ public:
     }
 
 private:
-    scene sides;
+    group sides;
     object* xy0 = nullptr;
     object* xy1 = nullptr;
     object* xz0 = nullptr;

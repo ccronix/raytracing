@@ -4,7 +4,7 @@
 #include <algorithm>
 
 #include "aabb.hpp"
-#include "scene.hpp"
+#include "group.hpp"
 #include "object.hpp"
 
 
@@ -18,7 +18,7 @@ public:
 
     bvh() {}
 
-    bvh(const scene& scn, double start=0, double end=0) : bvh(scn.objects, 0, scn.objects.size(), start, end) {}
+    bvh(const group& grp, double start=0, double end=0) : bvh(grp.objects, 0, grp.objects.size(), start, end) {}
 
     bvh(const std::vector<object*>& sources, int first, int last, double start, double end)
     {

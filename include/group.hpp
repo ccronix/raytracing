@@ -10,24 +10,24 @@
 
 
 
-class scene : public object {
+class group : public object {
 
 public:
     std::vector<object*> objects;
 
-    scene() {}
+    group() {}
 
-    scene(object* obj) { add(obj); }
+    group(object* obj) { add(obj); }
 
-    scene(scene& scn) { objects = scn.objects; }
+    group(group& grp) { objects = grp.objects; }
 
-    scene(scene&& scn) { objects = std::move(scn.objects); }
+    group(group&& grp) { objects = std::move(grp.objects); }
 
     void add(object* obj) { objects.push_back(obj); }
 
-    void add(const scene& scn)
+    void add(const group& grp)
     {
-        for (auto& object : scn.objects) {
+        for (auto& object : grp.objects) {
             objects.push_back(object);
         }
     }
