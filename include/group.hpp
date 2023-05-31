@@ -17,9 +17,15 @@ public:
 
     group(object* obj) { add(obj); }
 
-    group(group& grp) { objects = grp.objects; }
+    group(const group& grp) { objects = grp.objects; }
 
-    group(group&& grp) { objects = std::move(grp.objects); }
+    group(const group&& grp) { objects = std::move(grp.objects); }
+
+    group operator = (const group& grp)
+    {
+        objects = grp.objects;
+        return this;
+    }
 
     void add(object* obj) { objects.push_back(obj); }
 
@@ -66,6 +72,22 @@ public:
             first = false;
         }
         return true;
+    }
+
+    virtual double pdf(const vec3d& origin, const vec3d& value) const override
+    {
+        double weight = 1.0 / objects.size();
+        double average = 0;
+        for (auto& object : objects) {
+            average += weight * object->pdf(origin, value);
+        }
+        return average;
+    }
+
+    virtual vec3d rand(const vec3d& origin) const override
+    {
+        int index = random_int(0, objects.size() - 1);
+        return objects[index]->rand(origin);
     }
 
 private:
