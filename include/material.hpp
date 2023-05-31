@@ -14,6 +14,7 @@ public:
     virtual vec3d emit(const ray&r, const intersection& crossover, const vec3d& position, const vec2d uv_coord) const { return vec3d(0, 0, 0); }
     virtual bool shading(const ray&r, const intersection& crossover, scatter& scatter) const { return false; };
     virtual double shading_pdf(const ray& r, const intersection& crossover, const ray& scatter) const { return 0.0; };
+    virtual bool has_emission() const { return false; }
 };
 
 
@@ -113,14 +114,14 @@ private:
 };
 
 
-class light : public material {
+class emissive : public material {
 
 public:
     texture* emission;
 
-    light(texture* tex) { emission = tex; }
+    emissive(texture* tex) { emission = tex; }
 
-    light(const vec3d& color) { emission = new constant(color); }
+    emissive(const vec3d& color) { emission = new constant(color); }
 
     virtual vec3d emit(const ray&r, const intersection& crossover, const vec3d& position, const vec2d uv_coord) const override
     {        
@@ -136,6 +137,8 @@ public:
     {
         return false;
     }
+
+    virtual bool has_emission() const override { return true; }
 };
 
 
