@@ -38,9 +38,12 @@ public:
 
     group meshes() { return grp; }
 
+    group* lights() { return lgt; }
+
 
 private:
     group grp;
+    group* lgt = new group();
     std::string scene_path;
     std::vector<material*> mats;
 
@@ -65,7 +68,7 @@ private:
     {
         tinyobj::attrib_t attrib = reader.GetAttrib();
         std::vector<tinyobj::shape_t> shapes = reader.GetShapes();
-
+        printf("[INFO] start loading mesh...\n");
         for (auto& shape : shapes) {
             printf("[TinyOBJLoader] load shape: %s\n", shape.name.c_str());
             int mat_id;
@@ -115,10 +118,15 @@ private:
                     }
                 }
                 offset += face_num_vertices;
-                triangle* mesh_triangle = new triangle(vertices, mats[mat_id]);
+                material* triangle_mat = mats[mat_id];
+                triangle* mesh_triangle = new triangle(vertices, triangle_mat);
                 grp.add(mesh_triangle);
+                if (triangle_mat->has_emission()) {
+                    lgt->add(mesh_triangle);
+                }
             }
         }
+        printf("[INFO] load mesh done.\n");
     }
 
     void load_material(tinyobj::ObjReader reader)
@@ -126,8 +134,14 @@ private:
         texture* base_color;
         std::vector<tinyobj::material_t> materials = reader.GetMaterials();
         std::string scene_dir = dirname(scene_path);
-
+        printf("[INFO] start loading material...\n");
         for (auto& obj_mat : materials) {
+            vec3d Ke = vec3d(obj_mat.emission[0], obj_mat.emission[1], obj_mat.emission[2]);
+            if (Ke.x() !=0 || Ke.y() != 0 || Ke.z() != 0) {
+                material* emission = new emissive(Ke);
+                mats.push_back(emission);
+                continue;
+            }
             if (!obj_mat.diffuse_texname.empty()) {
                 std::string image_path = scene_dir + "/" + obj_mat.diffuse_texname;
                 printf("[TinyOBJLoader] load diffuse image: %s\n", image_path.c_str());
@@ -140,5 +154,6 @@ private:
             }
             mats.push_back(new lambertian(base_color));
         }
+        printf("[INFO] load material done.\n");
     }
 };
