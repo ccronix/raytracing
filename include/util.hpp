@@ -29,7 +29,7 @@ double degree_to_arc(double degree)
 
 double random_double()
 {
-    return rand() / double(RAND_MAX);
+    return rand() / double(RAND_MAX + 1.0);
 }
 
 
