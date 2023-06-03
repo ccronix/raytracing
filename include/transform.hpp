@@ -2,6 +2,7 @@
 
 
 #include "ray.hpp"
+#include "object.hpp"
 #include "intersection.hpp"
 #include "algebra/algebra.hpp"
 
