@@ -4,7 +4,8 @@
             "name": "MinGW-g++",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/include"
+                "${workspaceFolder}/include",
+                "C:/cuda_12.1/include"
             ],
             "defines": [
                 "_DEBUG",
