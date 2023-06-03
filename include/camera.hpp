@@ -39,7 +39,11 @@ public:
         this->focus_distance = focus_distance;
         this->shutter_start = shutter_start;
         this->shutter_end = shutter_end;
+        setup_camera();
+    }
 
+    void setup_camera()
+    {
         double arc_fov = degree_to_arc(fov);
         double sensor_h = tan(arc_fov / 2) * 2;
         double sensor_w = sensor_h * aspect_ratio;

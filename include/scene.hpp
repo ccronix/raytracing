@@ -57,5 +57,6 @@ private:
     {
         double aspect_ratio = double(width) / height;
         render_camera.aspect_ratio = aspect_ratio;
+        render_camera.setup_camera();
     }
 };
