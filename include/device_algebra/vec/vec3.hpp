@@ -60,6 +60,9 @@ public:
     }
 
     __host__ __device__ vec3 normalize() const {
+        if (length() == 0) {
+            return vec3();
+        }
         return *this / length(); 
     }
 
