@@ -136,23 +136,32 @@ private:
         std::string scene_dir = dirname(scene_path);
         printf("[INFO] start loading material...\n");
         for (auto& obj_mat : materials) {
+            vec3d Kd = vec3d(obj_mat.diffuse[0], obj_mat.diffuse[1], obj_mat.diffuse[2]);
+            vec3d Ks = vec3d(obj_mat.specular[0], obj_mat.specular[1], obj_mat.specular[2]);
             vec3d Ke = vec3d(obj_mat.emission[0], obj_mat.emission[1], obj_mat.emission[2]);
-            if (Ke.x() !=0 || Ke.y() != 0 || Ke.z() != 0) {
-                material* emission = new emissive(Ke);
-                mats.push_back(emission);
-                continue;
-            }
+            vec3d Tr = vec3d(obj_mat.transmittance[0], obj_mat.transmittance[1], obj_mat.transmittance[2]);
+            float Ns = obj_mat.shininess;
+            float Ni = obj_mat.ior;
+
             if (!obj_mat.diffuse_texname.empty()) {
                 std::string image_path = scene_dir + "/" + obj_mat.diffuse_texname;
                 printf("[TinyOBJLoader] load diffuse image: %s\n", image_path.c_str());
-                base_color = new image(image_path.c_str());
+                base_color = new image(image_path.c_str(), true);
             }
             else {
-                vec3d color = vec3d(obj_mat.diffuse[0], obj_mat.diffuse[1], obj_mat.diffuse[2]);
-                printf("[TinyOBJLoader] load constant: vec3(%f, %f, %f)\n", color.x(), color.y(), color.z());
-                base_color = new constant(color);
+                printf("[TinyOBJLoader] load constant: vec3(%f, %f, %f)\n", Kd.x(), Kd.y(), Kd.z());
+                base_color = nullptr;
             }
-            mats.push_back(new lambertian(base_color));
+
+            phong* mat = new phong(base_color);
+            mat->Kd = Kd;
+            mat->Ks = Ks;
+            mat->Ke = Ke;
+            mat->Tr = Tr;
+            mat->Ns = Ns;
+            mat->Ni = Ni;
+
+            mats.push_back(mat);
         }
         printf("[INFO] load material done.\n");
     }

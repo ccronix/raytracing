@@ -74,6 +74,7 @@ void render_image(const char* path, int width, int height)
     loader obj_loader = loader("C:/Users/Cronix/Documents/cronix_dev/raytracing/object/fruit/fruit.obj");
 
     camera cam = camera(vec3d(3, 2, -5), vec3d(1.5, 0.2, -2), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
+    // camera cam = camera(vec3d(0, 10, 40), vec3d(0, 10, 0), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
     // camera cam = camera(vec3d(7, 2, 1), vec3d(0, 1.5, -3), vec3d(0, 1, 0), 55, 1.78, 0, 1, 0, 1);
     // camera cam = camera(vec3d(-0.5, 1, 4), vec3d(0.5, 0, 0), vec3d(0, 1, 0), 55, 1.78, 0, 1, 0, 1);
 
@@ -83,7 +84,7 @@ void render_image(const char* path, int width, int height)
     scn.set_camera(cam);
     scn.build_bvh();
 
-    int spp = 10;
+    int spp = 100;
     int max_depth = 10;
 
     unsigned char* data = (unsigned char*) malloc(width * height * sizeof(unsigned char) * 3);
@@ -110,8 +111,8 @@ void render_image(const char* path, int width, int height)
             }
 
             color /= spp;
-            color = clamp(color, 0, 1);
             color = gamma(color, 0.45);
+            color = clamp(color, 0, 1);
             int index = (i * width + j) * 3;
             data[index] = int(color.x() * 255);
             data[index + 1] = int(color.y() * 255);

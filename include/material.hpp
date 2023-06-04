@@ -158,3 +158,119 @@ public:
         return true;
     }    
 };
+
+
+class phong : public material {
+
+public:
+    vec3d Kd = vec3d(0.9, 0.9, 0.9);
+    vec3d Ks = vec3d(0.0, 0.0, 0.0);
+    vec3d Ke = vec3d(0.0, 0.0, 0.0);
+    vec3d Tr = vec3d(0.0, 0.0, 0.0);
+    float Ns = 0.0;
+    float Ni = 0.0;
+
+    texture* diffuse_map = nullptr;
+    texture* normal_map = nullptr;
+
+    phong(const vec3d& color){ Kd = color; }
+
+    phong(texture* tex) { diffuse_map = tex; }
+
+    virtual vec3d emit(const ray&r, const intersection& crossover, const vec3d& position, const vec2d uv_coord) const override
+    {  
+        if (is_emissive() && crossover.frontward) {
+            return Ke;
+        }
+        else {
+            return vec3d(0, 0, 0); 
+        }
+    }
+
+    virtual bool shading(const ray& r, const intersection& crossover, scatter& scatter) const override
+    {
+        if (is_emissive()) {
+            return false;
+        }
+
+        vec3d base_color;
+        if (diffuse_map != nullptr) {
+            base_color = diffuse_map->color(crossover.position, crossover.uv_coord);
+        }
+        else {
+            base_color = Kd;
+        }
+
+        if (is_specular() && random_double() < 0.5) {
+            vec3d next = reflect(r.direction.normalize(), crossover.normal);
+            vec3d fuzz = 1 / log(Ns) * random_shpere();
+
+            vec3d normal = crossover.normal.normalize();
+            vec3d temp = next.cross(normal);
+            vec3d tangent = normal.cross(temp).normalize();
+            vec3d bi_tangent = normal.cross(tangent).normalize();
+            double fuzz_n = fuzz.dot(normal);
+            double fuzz_t = fuzz.dot(tangent);
+            double fuzz_bt = fuzz.dot(bi_tangent);
+            fuzz_t = fuzz_t / next.normalize().dot(normal);
+            fuzz_bt = fuzz_bt * next.normalize().dot(normal);
+
+            fuzz = normal * fuzz_n + tangent * fuzz_t + bi_tangent * fuzz_bt;
+
+            scatter.specular = ray(crossover.position, next + fuzz, r.time, r.t_min, r.t_max);
+            scatter.attenuation = Ks;
+            scatter.pdf_ptr = nullptr;
+            scatter.is_spec = true;
+            return true;
+        }
+
+        if (is_transmit()) {
+            scatter.is_spec = true;
+            scatter.pdf_ptr = nullptr;
+            scatter.attenuation = Tr;
+            double refract_ratio = crossover.frontward ? (1.0 / Ni) : Ni;
+
+            vec3d next = r.direction.normalize();
+            double cos_theta = fmin((-next).dot(crossover.normal), 1.0);
+            double sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+            bool not_refract = refract_ratio * sin_theta > 1.0;
+
+            vec3d referaction;
+            if (not_refract || reflectance(cos_theta, refract_ratio) > random_double()) {
+                referaction = reflect(next, crossover.normal);
+            }
+            else {
+                referaction =  refract(next, crossover.normal, refract_ratio);
+            }
+            scatter.specular = ray(crossover.position, referaction, r.time, r.t_min, r.t_max);
+            return true;
+        }
+
+        scatter.is_spec = false;
+        scatter.attenuation = base_color;
+        scatter.pdf_ptr = new cos_pdf(crossover.normal);
+        return true;
+    }
+
+    virtual double shading_pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
+    {
+        double cosine = crossover.normal.dot(scatter.direction.normalize());
+        return cosine < 0 ? 0 : cosine / pi;
+    }
+
+private:
+    bool is_specular() const { return Ks.x() > 0 || Ks.y() || Ks.z(); }
+
+    bool is_emissive() const { return Ke.x() > 0 || Ke.y() || Ke.z(); }
+
+    bool is_transmit() const { return Tr.x() > 0 || Tr.y() || Tr.z(); }
+
+    virtual bool has_emission() const override { return is_emissive(); }
+
+    static double reflectance(double cos_theta, double ior)
+    {
+        double r = (1 - ior) / (1 + ior);
+        r = r * r;
+        return r + (1 - r) * pow((1 - cos_theta), 5);
+    }
+};
