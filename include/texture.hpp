@@ -80,9 +80,10 @@ class image : public texture {
 public:
     image() {}
 
-    image(const char* path)
+    image(const char* path, bool color_based=false)
     {
         this->path = path;
+        this->color_based = color_based;
         data = stbi_load(path, &width, &height, &channels, 0);
         if (!data) {
             fprintf(stderr, "[ERROR] can not load image: %s\n", path);
@@ -113,7 +114,13 @@ public:
         const double scale = 1.0 / 255;
         int index = y * width * channels + x * channels;
         unsigned char* base = data + index;
-        return vec3d(base[0], base[1], base[2]) * scale;
+        
+        if (color_based) {
+            return gamma(vec3d(base[0], base[1], base[2]) * scale, 2.2);
+        }
+        else {
+            return vec3d(base[0], base[1], base[2]) * scale;
+        }
     }
 
 private:
@@ -122,4 +129,5 @@ private:
     int width = 0;
     int height = 0;
     int channels = 0;
+    bool color_based=false;
 };
