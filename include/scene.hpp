@@ -28,6 +28,8 @@ public:
         setup_camera_aspect_ratio();
     }
 
+    vec2i get_size() { return vec2i(width, height); }
+
     void set_camera(const camera& cam)
     {
         render_camera = cam;
