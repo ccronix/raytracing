@@ -63,6 +63,9 @@ public:
     }
 
     vec4 normalize(vec4 v ) const {
+        if (length() == 0) {
+            return vec4();
+        }
         return v / v.length(); 
     }
 

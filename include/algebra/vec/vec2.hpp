@@ -57,6 +57,9 @@ public:
     }
 
     vec2 normalize() const {
+        if (length() == 0) {
+            return vec2();
+        }
         return *this / length(); 
     }
 
