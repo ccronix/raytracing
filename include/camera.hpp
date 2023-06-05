@@ -1,6 +1,7 @@
 #pragma once
 
 
+#include "ray.hpp"
 #include "util.hpp"
 #include "algebra/algebra.hpp"
 
