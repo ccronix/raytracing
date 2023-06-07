@@ -1,7 +1,6 @@
 #pragma once
 
-#include <vector>
-#include <algorithm>
+#include <cstdlib>
 
 #include "aabb.hpp"
 #include "group.hpp"
@@ -18,13 +17,13 @@ public:
 
     bvh() {}
 
-    bvh(const group& grp, double start=0, double end=0) : bvh(grp.content(), 0, grp.content().size(), start, end) {}
+    bvh(const group& grp, double start=0, double end=0) : bvh(grp.content(), 0, grp.size(), start, end) {}
 
-    bvh(const std::vector<object*>& sources, int first, int last, double start, double end)
+    bvh(object** objects, int first, int last, double start, double end)
     {
-        std::vector<object*> objects = sources;
         int axis = random_int(0, 2);
         auto function = (axis == 0) ? comparex : (axis == 1) ? comparey : comparez;
+        auto qcompare = (axis == 0) ? qcomparex : (axis == 1) ? qcomparey : qcomparez;
         int span = last - first;
 
         if (span == 1) {
@@ -42,7 +41,8 @@ public:
             }
         }
         else {
-            std::sort(objects.begin() + first, objects.begin() + last, function);
+            qsort(objects + first, span, sizeof(object*), qcompare);
+            // std::sort(objects.begin() + first, objects.begin() + last, function);
             int middle = first + span / 2;
             left = new bvh(objects, first, middle, start, end);
             right = new bvh(objects, middle, last, start, end);
@@ -95,5 +95,20 @@ public:
     static bool comparez(const object* a, const object* b)
     {
         return compare(a, b, 2);
+    }
+
+    static int qcomparex(const void* a, const void* b)
+    {
+        return compare(*(object**) a, *(object**) b, 0) ? 1 : -1;
+    }
+
+    static int qcomparey(const void* a, const void* b)
+    {
+        return compare(*(object**) a, *(object**) b, 1) ? 1 : -1;
+    }
+
+    static int qcomparez(const void* a, const void* b)
+    {
+        return compare(*(object**) a, *(object**) b, 2) ? 1 : -1;
     }
 };

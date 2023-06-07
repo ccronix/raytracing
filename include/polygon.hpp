@@ -1,8 +1,7 @@
 #pragma once
 
 
-#include <cmath>
-#include <vector>
+#include <cstdlib>
 #include <algorithm>
 
 #include "ray.hpp"
@@ -24,11 +23,13 @@ struct vertex
 class triangle : public object {
 
 public:
-    triangle(std::vector<vertex> vertices, material* mat) 
+    triangle(vertex* vertices, material* mat) 
     {
-        for (int i = 0; i < 3; i++) {
-            this->vertices.push_back(vertices[i]);
-        }
+        this->vertices = (vertex*) malloc(sizeof(vertex) * 3);
+
+        this->vertices[0] = vertices[0];
+        this->vertices[1] = vertices[1];
+        this->vertices[2] = vertices[2];
 
         p0p1 = vertices[1].position - vertices[0].position;
         p0p2 = vertices[2].position - vertices[0].position;
@@ -38,9 +39,11 @@ public:
 
     triangle(vertex v0, vertex v1, vertex v2, material* mat)
     {
-        vertices.push_back(v0);
-        vertices.push_back(v1);
-        vertices.push_back(v2);
+        this->vertices = (vertex*) malloc(sizeof(vertex) * 3);
+
+        vertices[0] = v0;
+        vertices[1] = v1;
+        vertices[2] = v2;
 
         p0p1 = vertices[1].position - vertices[0].position;
         p0p2 = vertices[2].position - vertices[0].position;
@@ -50,6 +53,8 @@ public:
 
     triangle(vec3d p0, vec3d p1, vec3d p2, material* mat)
     {
+        this->vertices = (vertex*) malloc(sizeof(vertex) * 3);
+
         vertex v0, v1, v2;
 
         v0.position = p0;
@@ -64,14 +69,22 @@ public:
         v1.normal = (p2 - p1).cross(p0 - p1).normalize();
         v2.normal = (p0 - p2).cross(p1 - p2).normalize();
 
-        vertices.push_back(v0);
-        vertices.push_back(v1);
-        vertices.push_back(v2);
+        vertices[0] = v0;
+        vertices[1] = v1;
+        vertices[2] = v2;
 
         p0p1 = vertices[1].position - vertices[0].position;
         p0p2 = vertices[2].position - vertices[0].position;
 
         this->mat = mat;
+    }
+ 
+    virtual ~triangle() override
+    {
+        free(vertices);
+        free(mat);
+        vertices = nullptr;
+        mat = nullptr;
     }
 
     virtual bool intersect(const ray& r, intersection& crossover) const override
@@ -155,7 +168,7 @@ public:
 
 private:
     vec3d p0p1, p0p2;
-    std::vector<vertex> vertices;
+    vertex* vertices;
     material* mat;
 
     vec2d interpret_uv(double u, double v) const

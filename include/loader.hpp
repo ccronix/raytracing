@@ -1,9 +1,10 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 
 
-#include <cstdio>
 #include <vector>
 #include <string>
+#include <cstdio>
+#include <cstdlib>
 
 #include "group.hpp"
 #include "polygon.hpp"
@@ -69,6 +70,7 @@ private:
         tinyobj::attrib_t attrib = reader.GetAttrib();
         std::vector<tinyobj::shape_t> shapes = reader.GetShapes();
         printf("[INFO] start loading mesh...\n");
+        vertex* vertices = (vertex*) malloc(sizeof(vertex) * 3);
         for (auto& shape : shapes) {
             printf("[TinyOBJLoader] load shape: %s\n", shape.name.c_str());
             int mat_id;
@@ -80,7 +82,7 @@ private:
                     continue;
                 }
 
-                std::vector<vertex> vertices(3);
+
                 int mat_id = shape.mesh.material_ids[face_id];
 
                 for (int vertex_id = 0; vertex_id < face_num_vertices; vertex_id++) {
@@ -126,6 +128,8 @@ private:
                 }
             }
         }
+        free(vertices);
+        vertices = nullptr;
         printf("[INFO] load mesh done.\n");
     }
 
