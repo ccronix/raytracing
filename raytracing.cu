@@ -11,6 +11,107 @@
 #include "device_algebra/algebra.hpp"
 
 
+struct ray {
+    vec3d origin;
+    vec3d direction;
+    double time = 0;
+    double t_min = 1e-3;
+    double t_max = INFINITY;
+
+    __device__ ray() {}
+
+    __device__ ray(vec3d origin, vec3d direction, double time=0, double t_min=1e-3, double t_max=INFINITY) 
+    {
+        this->origin = origin;
+        this->direction = direction;
+        this->time = time;
+        this->t_min = t_min;
+        this->t_max = t_max;
+    }
+
+    __device__ vec3d at(double t) const { return origin + t * direction; }
+};
+
+
+struct intersection {
+
+    vec3d position;
+    vec3d normal;
+    vec2d uv_coord;
+    double t;
+    bool frontward;
+
+    __device__ void set_face_normal(const ray& r, const vec3d& outward_normal)
+    {
+        frontward = r.direction.dot(outward_normal) < 0;
+        normal = frontward ? outward_normal : -outward_normal;
+    }
+};
+
+
+class object {
+
+public:
+    __device__ virtual ~object() {}
+    __device__ virtual bool intersect(const ray& r, intersection& crossover) const = 0;
+};
+
+
+class sphere : public object {
+
+public:
+    vec3d center;
+    double radius;
+
+    __device__ sphere() {}
+
+    __device__ sphere(vec3d center, double radius) 
+    {
+        this->center = center;
+        this->radius = radius;
+    }
+
+    __device__ virtual bool intersect(const ray& r, intersection& crossover) const override
+    {
+        vec3d oc = r.origin - center;
+        double a = r.direction.dot(r.direction);
+        double b = 2.0 * oc.dot(r.direction);
+        double c = oc.dot(oc) - radius * radius;
+        double discriminant = b * b - 4 * a * c;
+
+        if (discriminant < 0) {
+            return false;
+        }
+
+        double root = (-b - sqrt(discriminant)) / (a * 2);
+        
+        if (root < r.t_min || root > r.t_max) {
+            root = (-b + sqrt(discriminant)) / (a * 2);
+            if (root < r.t_min || root > r.t_max) {
+                return false; 
+            }
+        }
+        crossover.t = root;
+        crossover.position = r.at(root);
+        vec3d outward_normal = (crossover.position - center) / radius;
+        crossover.set_face_normal(r, outward_normal);
+        crossover.uv_coord = uv(outward_normal);
+        return true;
+    }
+
+private:
+    __device__ static vec2d uv(const vec3d& position)
+    {
+        double pi = 3.141592653589;
+        double theta = acos(-position.y());
+        double phi = atan2(-position.z(), position.x()) + pi;
+        double u = phi / (2 * pi);
+        double v = theta / pi;
+        return vec2d(u, v);
+    }
+};
+
+
 __global__ void trace(unsigned char* buffer, int width, int height)
 {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
