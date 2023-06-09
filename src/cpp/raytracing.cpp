@@ -130,6 +130,6 @@ void render_image(const char* path, int width, int height)
 int main(int argc, char* argv[])
 {
     int width = 1920, height = 1080;
-    render_image("C:/Users/Cronix/Documents/cronix_dev/raytracing/output.png", width, height);
+    render_image("./output.png", width, height);
     return 0;
 }

@@ -63,9 +63,9 @@ public:
     vec3d center;
     double radius;
 
-    __device__ sphere() {}
+    __host__ __device__ sphere() {}
 
-    __device__ sphere(vec3d center, double radius) 
+    __host__ __device__ sphere(vec3d center, double radius) 
     {
         this->center = center;
         this->radius = radius;
@@ -109,6 +109,86 @@ private:
         double v = theta / pi;
         return vec2d(u, v);
     }
+};
+
+
+class group : public object {
+
+public:
+    __host__ __device__ group() {}
+
+    __host__ __device__ group(object* obj) { add(obj); }
+
+    __host__ __device__ group(const group& grp) 
+    { 
+        objects = grp.objects; 
+        count = grp.size();
+    }
+
+    __host__ __device__ group operator = (const group& grp)
+    {
+        objects = grp.objects;
+        count = grp.size();
+        return this;
+    }
+
+    __host__ __device__ void add(object* obj)
+    {
+        if (count == 0) {
+            objects = (object**) malloc(sizeof(object*));
+        }
+        else {
+            objects = (object**) realloc(objects, sizeof(object*) * (count + 1));
+        }
+        objects[count] = obj;
+        count++;
+    }
+
+    __host__ __device__ void add(const group& grp)
+    {
+        for (int i = 0; i < grp.size(); i++) {
+            object* object = grp.objects[i];
+            add(object);
+        }
+    }
+
+    __host__ __device__ void clear() 
+    { 
+        for (int i = 0; i < count; i++) {
+            object* object = objects[i];
+            free(object);
+            object = nullptr;
+        }
+        free(objects);
+        objects = nullptr;
+        count = 0;
+    }
+
+    __host__ __device__ int size() const { return count; }
+
+    __host__ __device__ object** content() const { return objects; }
+
+    __device__ virtual bool intersect(const ray& r, intersection& crossover) const override
+    {
+        intersection temp_crossover;
+        bool has_intersect = false;
+        double closest = r.t_max;
+
+        for (int i = 0; i < count; i++) {
+            object* object = objects[i];
+            if (object->intersect(ray(r.origin, r.direction, r.time, r.t_min, closest), temp_crossover)) {
+                has_intersect = true;
+                closest = temp_crossover.t;
+                crossover = temp_crossover;
+            }
+        }
+        return has_intersect;
+    }
+
+
+private:
+    object** objects = nullptr;
+    int count = 0;
 };
 
 
