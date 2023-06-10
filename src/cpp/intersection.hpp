@@ -29,8 +29,8 @@ struct intersection {
 
 struct scatter {
 
-ray specular;
-bool is_spec;
-pdf* pdf_ptr;
-vec3d attenuation;
+    ray specular;
+    bool is_spec;
+    pdf* pdf_ptr;
+    vec3d attenuation;
 };

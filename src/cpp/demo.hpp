@@ -76,6 +76,8 @@ group cornell_box()
     grp.add(new planexz(0, 555, 0, 555, 555, white_diffuse));
     grp.add(new planexy(0, 555, 0, 555, 555, white_diffuse));
 
+    grp.add(new flip(new planexz(213, 343, 227, 332, 554, area_light)));
+
     object* box1 = new box(vec3d(0, 0, 0), vec3d(165, 330, 165), mirror);
     box1 = new rotatey(box1, 15);
     box1 = new translate(box1, vec3d(265, 0, 295));;
