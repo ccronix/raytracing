@@ -1,1 +1,1 @@
-nvcc ..\cuda\raytracing.cu -O3 -fopenmp -I ..\..\include -o raytracing
+nvcc ..\cuda\raytracing.cu -I ..\..\include -o cuda_raytracing
