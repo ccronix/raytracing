@@ -17,7 +17,7 @@ public:
         content[0] = v.content[0];
         content[1] = v.content[1];
     }
-    ~vec2() {}
+    __host__ __device__ ~vec2() {}
 
     __host__ __device__ T x() const { return content[0]; }
     __host__ __device__ T y() const { return content[1]; }
