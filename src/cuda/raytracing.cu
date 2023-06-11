@@ -174,12 +174,15 @@ __host__ void render_image(const char* path, int width, int height, int spp)
     create_scene<<<1, 1>>>(scn, lgt, cam);
     CHECK(cudaDeviceSynchronize());
 
+    printf("[INFO] start render...\n");
+    clock_t start = clock();
+
     printf("[CUDA] kernel launch...\n");
 
     render<<<blocks, threads>>>(data, scn, lgt, cam, width, height, spp, state);
     CHECK(cudaDeviceSynchronize());
 
-    printf("[CUDA] kernel done, writing data...\n");
+    printf("[CUDA] kernel done, using %f sec.\n", float(clock() - start) / CLOCKS_PER_SEC);
 
     stbi_flip_vertically_on_write(true);
     stbi_write_png(path, width, height, 3, data, 0);
