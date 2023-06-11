@@ -7,210 +7,143 @@
 
 #include <cuda_runtime.h>
 
+#include "ray.cuh"
+#include "pdf.cuh"
+#include "demo.cuh"
+#include "group.cuh"
+#include "camera.cuh"
+#include "material.cuh"
+#include "intersection.cuh"
+
 #include "stb/stb_image_write.hpp"
 #include "device_algebra/algebra.hpp"
 
 
-struct ray {
-    vec3d origin;
-    vec3d direction;
-    double time = 0;
-    double t_min = 1e-3;
-    double t_max = INFINITY;
+#define CHECK(call)                                   \
+do                                                    \
+{                                                     \
+    const cudaError_t error_code = call;              \
+    if (error_code != cudaSuccess)                    \
+    {                                                 \
+        printf("CUDA Error:\n");                      \
+        printf("    File:       %s\n", __FILE__);     \
+        printf("    Line:       %d\n", __LINE__);     \
+        printf("    Error code: %d\n", error_code);   \
+        printf("    Error text: %s\n",                \
+            cudaGetErrorString(error_code));          \
+        exit(1);                                      \
+    }                                                 \
+} while (0)
 
-    __device__ ray() {}
 
-    __device__ ray(vec3d origin, vec3d direction, double time=0, double t_min=1e-3, double t_max=INFINITY) 
+__device__ vec3d trace(group** scn, const ray& r, int depth, curandState* state, object** lights)
+{
+    vec3d accumulated_radiance(0, 0, 0);
+    vec3d throughput(1, 1, 1);
+    ray current_ray = r;
+
+    for (int i = 0; i < depth; i++)
     {
-        this->origin = origin;
-        this->direction = direction;
-        this->time = time;
-        this->t_min = t_min;
-        this->t_max = t_max;
-    }
-
-    __device__ vec3d at(double t) const { return origin + t * direction; }
-};
-
-
-struct intersection {
-
-    vec3d position;
-    vec3d normal;
-    vec2d uv_coord;
-    double t;
-    bool frontward;
-
-    __device__ void set_face_normal(const ray& r, const vec3d& outward_normal)
-    {
-        frontward = r.direction.dot(outward_normal) < 0;
-        normal = frontward ? outward_normal : -outward_normal;
-    }
-};
-
-
-class object {
-
-public:
-    __device__ virtual ~object() {}
-    __device__ virtual bool intersect(const ray& r, intersection& crossover) const = 0;
-};
-
-
-class sphere : public object {
-
-public:
-    vec3d center;
-    double radius;
-
-    __host__ __device__ sphere() {}
-
-    __host__ __device__ sphere(vec3d center, double radius) 
-    {
-        this->center = center;
-        this->radius = radius;
-    }
-
-    __device__ virtual bool intersect(const ray& r, intersection& crossover) const override
-    {
-        vec3d oc = r.origin - center;
-        double a = r.direction.dot(r.direction);
-        double b = 2.0 * oc.dot(r.direction);
-        double c = oc.dot(oc) - radius * radius;
-        double discriminant = b * b - 4 * a * c;
-
-        if (discriminant < 0) {
-            return false;
+        intersection crossover;
+        if (!(*scn)->intersect(current_ray, crossover)) {
+            break;
         }
 
-        double root = (-b - sqrt(discriminant)) / (a * 2);
-        
-        if (root < r.t_min || root > r.t_max) {
-            root = (-b + sqrt(discriminant)) / (a * 2);
-            if (root < r.t_min || root > r.t_max) {
-                return false; 
-            }
+        vec3d emission = crossover.mat->emit(current_ray, crossover, crossover.position, crossover.uv_coord);
+        accumulated_radiance += throughput * emission;
+
+        scatter scattering;
+        if (!crossover.mat->shading(current_ray, crossover, scattering, state)) {
+            break;
         }
-        crossover.t = root;
-        crossover.position = r.at(root);
-        vec3d outward_normal = (crossover.position - center) / radius;
-        crossover.set_face_normal(r, outward_normal);
-        crossover.uv_coord = uv(outward_normal);
-        return true;
-    }
 
-private:
-    __device__ static vec2d uv(const vec3d& position)
-    {
-        double pi = 3.141592653589;
-        double theta = acos(-position.y());
-        double phi = atan2(-position.z(), position.x()) + pi;
-        double u = phi / (2 * pi);
-        double v = theta / pi;
-        return vec2d(u, v);
-    }
-};
+        if (scattering.is_spec) {
+            // accumulated_radiance += throughput * scattering.attenuation * trace(scn, scattering.specular, depth - i - 1);
+            break;
+        }
 
+        ray next_ray;
+        double pdf_value;
 
-class group : public object {
-
-public:
-    __host__ __device__ group() {}
-
-    __host__ __device__ group(object* obj) { add(obj); }
-
-    __host__ __device__ group(const group& grp) 
-    { 
-        objects = grp.objects; 
-        count = grp.size();
-    }
-
-    __host__ __device__ group operator = (const group& grp)
-    {
-        objects = grp.objects;
-        count = grp.size();
-        return this;
-    }
-
-    __host__ __device__ void add(object* obj)
-    {
-        if (count == 0) {
-            objects = (object**) malloc(sizeof(object*));
+        if (false) {
+            obj_pdf* direct_pdf = new obj_pdf((*lights), crossover.position);
+            mix_pdf mixture_pdf = mix_pdf(direct_pdf, scattering.pdf_ptr);
+            next_ray = ray(crossover.position, mixture_pdf.generate(state), current_ray.time, current_ray.t_min, current_ray.t_max);
+            pdf_value = mixture_pdf.value(next_ray.direction);
+            delete direct_pdf;
         }
         else {
-            objects = (object**) realloc(objects, sizeof(object*) * (count + 1));
+            next_ray = ray(crossover.position, scattering.pdf_ptr->generate(state), current_ray.time, current_ray.t_min, current_ray.t_max);
+            pdf_value = scattering.pdf_ptr->value(next_ray.direction);
         }
-        objects[count] = obj;
-        count++;
+
+        if (scattering.pdf_ptr != nullptr) {
+            delete scattering.pdf_ptr;
+        }
+
+        throughput = throughput * scattering.attenuation * crossover.mat->shading_pdf(current_ray, crossover, next_ray) / pdf_value;
+        current_ray = next_ray;
     }
 
-    __host__ __device__ void add(const group& grp)
-    {
-        for (int i = 0; i < grp.size(); i++) {
-            object* object = grp.objects[i];
-            add(object);
-        }
-    }
-
-    __host__ __device__ void clear() 
-    { 
-        for (int i = 0; i < count; i++) {
-            object* object = objects[i];
-            free(object);
-            object = nullptr;
-        }
-        free(objects);
-        objects = nullptr;
-        count = 0;
-    }
-
-    __host__ __device__ int size() const { return count; }
-
-    __host__ __device__ object** content() const { return objects; }
-
-    __device__ virtual bool intersect(const ray& r, intersection& crossover) const override
-    {
-        intersection temp_crossover;
-        bool has_intersect = false;
-        double closest = r.t_max;
-
-        for (int i = 0; i < count; i++) {
-            object* object = objects[i];
-            if (object->intersect(ray(r.origin, r.direction, r.time, r.t_min, closest), temp_crossover)) {
-                has_intersect = true;
-                closest = temp_crossover.t;
-                crossover = temp_crossover;
-            }
-        }
-        return has_intersect;
-    }
+    return accumulated_radiance;
+}
 
 
-private:
-    object** objects = nullptr;
-    int count = 0;
-};
-
-
-__global__ void trace(unsigned char* buffer, int width, int height)
+__global__ void render(unsigned char* buffer, group** scn, object** lgt, camera** cam, int width, int height, int spp, curandState* state)
 {
-    int i = threadIdx.x + blockIdx.x * blockDim.x;
-    int j = threadIdx.y + blockIdx.y * blockDim.y;
-    if (i >= width || j >= height) return;
+    int j = threadIdx.x + blockIdx.x * blockDim.x;
+    int i = threadIdx.y + blockIdx.y * blockDim.y;
+    if (j >= width || i >= height) return;
 
-    double r = double(i) / width;
-    double g = double(j) / height;
-    double b = 0.25;
-    vec3d color = vec3d(r, g, b);
+    int r_idx = i * width + j;
+    int index = (i * width + j) * 3;
 
-    int index = (j * width + i) * 3;
+    // printf("device: %d %d %d\n", j, i, index);
+    vec3d color = vec3d(0, 0, 0);
+    for (int k = 0; k < spp; k++) {
+        double x = double(j + random_double(&state[r_idx])) / (width - 1);
+        double y = double(i + random_double(&state[r_idx])) / (height - 1);
+
+        ray r = (*cam)->emit(x, y, &state[r_idx]);
+        vec3d sample = trace(scn, r, 10, &state[r_idx], lgt);
+
+        if (is_nan(sample) || is_infinity(sample)) {
+            sample = vec3d(0, 0, 0);
+        }
+
+        color += sample;
+    }
+
+    color /= spp;
+    color = gamma(color, 0.45);
+    color = clamp(color, 0, 1);
+    
     buffer[index] = int(color.x() * 255);
     buffer[index + 1] = int(color.y() * 255);
     buffer[index + 2] = int(color.z() * 255);
 }
 
 
-__host__ void render_image(const char* path, int width, int height)
+__global__ void create_scene(group** scn, object** lgt, camera** cam)
+{
+    *scn = cornell_box();
+    *cam = new camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
+    *lgt = new flip(new planexz(213, 343, 227, 332, 554, new emissive(vec3d(30, 30, 30))));
+}
+
+
+__global__ void random_init(int width, int height, curandState *state) 
+{
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    if(x >= width || y >= height) return;
+
+    int index = y * width + x;
+    curand_init(0, index, 0, &state[index]);
+}
+
+
+__host__ void render_image(const char* path, int width, int height, int spp)
 {
     int size = width * height * sizeof(unsigned char) * 3;
     unsigned char* data;
@@ -221,13 +154,30 @@ __host__ void render_image(const char* path, int width, int height)
         exit(1);
     }
 
-    dim3 blocks(width / 8, height / 8);
+    group** scn;
+    object** lgt;
+    camera** cam;
+    
+    cudaMalloc((void**) &scn, sizeof(group*));
+    cudaMalloc((void**) &lgt, sizeof(object*));
+    cudaMalloc((void**) &cam, sizeof(camera*));
+
+    dim3 blocks(width / 8 + 1, height / 8 + 1);
     dim3 threads(8, 8);
+
+    curandState* state;
+    cudaMallocManaged((void**) &state, width * height * sizeof(curandState));
+
+    random_init<<<blocks, threads>>>(width, height, state);
+    CHECK(cudaDeviceSynchronize());
+
+    create_scene<<<1, 1>>>(scn, lgt, cam);
+    CHECK(cudaDeviceSynchronize());
 
     printf("[CUDA] kernel launch...\n");
 
-    trace<<<blocks, threads>>>(data, width, height);
-    cudaDeviceSynchronize();
+    render<<<blocks, threads>>>(data, scn, lgt, cam, width, height, spp, state);
+    CHECK(cudaDeviceSynchronize());
 
     printf("[CUDA] kernel done, writing data...\n");
 
@@ -239,6 +189,6 @@ __host__ void render_image(const char* path, int width, int height)
 
 __host__ int main(int argc, char* argv[])
 {
-    render_image("C:/Users/Cronix/Documents/cronix_dev/raytracing/cuda_output.png", 1920, 1080);
+    render_image("./cuda_output.png", 1024, 1024, 100);
     return 0;
 }
