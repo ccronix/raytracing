@@ -34,7 +34,7 @@ public:
     {
         scatter.is_spec = false;
         scatter.attenuation = base_color->color(crossover.position, crossover.uv_coord);
-        scatter.pdf_ptr = new cos_pdf(crossover.normal);
+        // scatter.pdf_ptr = new cos_pdf(crossover.normal);
         return true;
     }
 

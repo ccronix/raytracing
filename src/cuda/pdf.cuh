@@ -40,6 +40,26 @@ private:
 };
 
 
+__device__ double cos_pdf_value(const vec3d& normal, const vec3d& direction)
+{
+    double cosine = direction.normalize().dot(normal.normalize());
+    return (cosine <=0) ? 0 : cosine / 3.141592653589;
+}
+
+
+__device__ vec3d cos_pdf_generate(const vec3d normal, curandState* state)
+{
+    vec3d rand_cos = random_cosine(state);
+
+    vec3d axis[3];
+    axis[2] = normal.normalize();
+    vec3d x = (fabs(axis[2].x()) > 0.9) ? vec3d(0, 1, 0) : vec3d(1, 0, 0);
+    axis[1] = axis[2].cross(x).normalize();
+    axis[0] = axis[2].cross(axis[1]);
+    return rand_cos.x() * axis[0] + rand_cos.y() * axis[1] + rand_cos.z() * axis[2];
+}
+
+
 class obj_pdf : public pdf {
 
 public:

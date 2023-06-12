@@ -12,10 +12,6 @@
 #include <curand_kernel.h>
 
 
-const double infinity = std::numeric_limits<double>::infinity();
-// const double pi = 3.141592653589;
-const double epsilon = 1e-7;
-
 
 __device__ bool near_zero(vec3d v)
 {

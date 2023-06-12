@@ -17,10 +17,10 @@
 
 __device__ group random_scene(curandState* state)
 {
-    group grp;
+    group* grp;
     texture* checker_tex = new checker(vec3d(0, 0, 0), vec3d(1, 1, 1));
     material* ground_mat = new lambertian(checker_tex);
-    grp.add(new sphere(sphere(vec3d(0, -1000, 0), 1000, ground_mat)));
+    grp->add(new sphere(sphere(vec3d(0, -1000, 0), 1000, ground_mat)));
 
     for(int i = -11; i < 11; i++) {
         for (int j = -11; j < 11; j++) {
@@ -32,30 +32,30 @@ __device__ group random_scene(curandState* state)
                     vec3d albedo = random_vector(state) * random_vector(state);
                     material* sphere_mat = new lambertian(albedo);
                     vec3d center2 = center + vec3d(0, random_double(0, 0.5, state), 0);
-                    grp.add(new msphere(center, center2, 0, 1, 0.2, sphere_mat));
+                    grp->add(new msphere(center, center2, 0, 1, 0.2, sphere_mat));
                 }
                 else if (choose < 0.95)
                 {
                     vec3d albedo = random_vector(0.5, 1, state);
                     double roughness = random_double(0, 0.5, state);
                     material* sphere_mat = new metal(albedo, roughness);
-                    grp.add(new sphere(center, 0.2, sphere_mat));
+                    grp->add(new sphere(center, 0.2, sphere_mat));
                 }
                 else {
                     material* sphere_mat = new dielectric(1.5);
-                    grp.add(new sphere(center, 0.2, sphere_mat));
+                    grp->add(new sphere(center, 0.2, sphere_mat));
                 }
             }
         }
     }
     material* glass = new dielectric(1.5);
-    grp.add(new sphere(vec3d(0, 1, 0), 1.0, glass));
+    grp->add(new sphere(vec3d(0, 1, 0), 1.0, glass));
 
     material* diffuse = new lambertian(vec3d(0.4, 0.2, 0.1));
-    grp.add(new sphere(vec3d(-4, 1, 0), 1.0, diffuse));
+    grp->add(new sphere(vec3d(-4, 1, 0), 1.0, diffuse));
 
     material* gold = new metal(vec3d(0.7, 0.6, 0.5), 0);
-    grp.add(new sphere(vec3d(4, 1, 0), 1.0, gold));
+    grp->add(new sphere(vec3d(4, 1, 0), 1.0, gold));
     bvh* bvh_grp = new bvh(grp, 0, 1);
     return group(bvh_grp);
 }

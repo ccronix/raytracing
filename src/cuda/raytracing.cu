@@ -36,7 +36,7 @@ do                                                    \
 } while (0)
 
 
-__device__ vec3d trace(group** scn, const ray& r, int depth, curandState* state, object** lights)
+__device__ vec3d trace(group* scn, const ray& r, int depth, curandState* state, object* lights)
 {
     vec3d accumulated_radiance(0, 0, 0);
     vec3d throughput(1, 1, 1);
@@ -45,7 +45,7 @@ __device__ vec3d trace(group** scn, const ray& r, int depth, curandState* state,
     for (int i = 0; i < depth; i++)
     {
         intersection crossover;
-        if (!(*scn)->intersect(current_ray, crossover)) {
+        if (!scn->intersect(current_ray, crossover)) {
             break;
         }
 
@@ -66,22 +66,22 @@ __device__ vec3d trace(group** scn, const ray& r, int depth, curandState* state,
         double pdf_value;
 
         if (false) {
-            obj_pdf* direct_pdf = new obj_pdf((*lights), crossover.position);
+            obj_pdf* direct_pdf = new obj_pdf(lights, crossover.position);
             mix_pdf mixture_pdf = mix_pdf(direct_pdf, scattering.pdf_ptr);
             next_ray = ray(crossover.position, mixture_pdf.generate(state), current_ray.time, current_ray.t_min, current_ray.t_max);
             pdf_value = mixture_pdf.value(next_ray.direction);
             delete direct_pdf;
         }
         else {
-            next_ray = ray(crossover.position, scattering.pdf_ptr->generate(state), current_ray.time, current_ray.t_min, current_ray.t_max);
-            pdf_value = scattering.pdf_ptr->value(next_ray.direction);
+            next_ray = ray(crossover.position, cos_pdf_generate(crossover.normal, state), current_ray.time, current_ray.t_min, current_ray.t_max);
+            pdf_value = cos_pdf_value(crossover.normal, next_ray.direction);
         }
 
         if (scattering.pdf_ptr != nullptr) {
             delete scattering.pdf_ptr;
         }
 
-        throughput = throughput * scattering.attenuation * crossover.mat->shading_pdf(current_ray, crossover, next_ray) / pdf_value;
+        throughput = throughput * scattering.attenuation;
         current_ray = next_ray;
     }
 
@@ -105,7 +105,7 @@ __global__ void render(unsigned char* buffer, group** scn, object** lgt, camera*
         double y = double(i + random_double(&state[r_idx])) / (height - 1);
 
         ray r = (*cam)->emit(x, y, &state[r_idx]);
-        vec3d sample = trace(scn, r, 10, &state[r_idx], lgt);
+        vec3d sample = trace(*scn, r, 10, &state[r_idx], *lgt);
 
         if (is_nan(sample) || is_infinity(sample)) {
             sample = vec3d(0, 0, 0);
