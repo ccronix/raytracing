@@ -65,12 +65,16 @@ __device__ vec3d trace(group* scn, const ray& r, int depth, curandState* state, 
         ray next_ray;
         double pdf_value;
 
-        if (false) {
-            obj_pdf* direct_pdf = new obj_pdf(lights, crossover.position);
-            mix_pdf mixture_pdf = mix_pdf(direct_pdf, scattering.pdf_ptr);
-            next_ray = ray(crossover.position, mixture_pdf.generate(state), current_ray.time, current_ray.t_min, current_ray.t_max);
-            pdf_value = mixture_pdf.value(next_ray.direction);
-            delete direct_pdf;
+        if (true) {
+            vec3d pdf_generate;
+            if (random_double(state) < 0.5) {
+                pdf_generate = lights->rand(crossover.position, state);
+            }
+            else {
+                pdf_generate = cos_pdf_generate(crossover.normal, state);
+            }
+            next_ray = ray(crossover.position, pdf_generate, current_ray.time, current_ray.t_min, current_ray.t_max);
+            pdf_value = 0.5 * (cos_pdf_value(crossover.normal, next_ray.direction) + lights->pdf(crossover.position, next_ray.direction));
         }
         else {
             next_ray = ray(crossover.position, cos_pdf_generate(crossover.normal, state), current_ray.time, current_ray.t_min, current_ray.t_max);
@@ -81,7 +85,7 @@ __device__ vec3d trace(group* scn, const ray& r, int depth, curandState* state, 
             delete scattering.pdf_ptr;
         }
 
-        throughput = throughput * scattering.attenuation;
+        throughput = throughput * scattering.attenuation * crossover.mat->shading_pdf(current_ray, crossover, next_ray) / pdf_value;
         current_ray = next_ray;
     }
 
