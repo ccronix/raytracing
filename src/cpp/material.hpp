@@ -38,7 +38,7 @@ public:
     virtual double shading_pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
     {
         double cosine = crossover.normal.dot(scatter.direction.normalize());
-        return cosine < 0 ? 0 : cosine / pi;
+        return cosine > 0 ? cosine / pi : 0;
     }
 };
 
@@ -255,7 +255,7 @@ public:
     virtual double shading_pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
     {
         double cosine = crossover.normal.dot(scatter.direction.normalize());
-        return cosine < 0 ? 0 : cosine / pi;
+        return cosine > 0 ? cosine / pi : 0;
     }
 
 private:

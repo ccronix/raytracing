@@ -25,7 +25,7 @@ public:
     virtual double value(const vec3d& direction) const override
     {
         double cosine = direction.normalize().dot(uvw.w());
-        return (cosine <=0) ? 0 : cosine / pi;
+        return cosine > 0 ? cosine / pi : 0;
     }
 
     virtual vec3d generate() const override
