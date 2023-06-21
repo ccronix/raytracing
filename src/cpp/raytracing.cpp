@@ -77,17 +77,17 @@ vec3d trace(const scene& scn, const ray& r,  int depth)
 
 void render_image(const char* path, int width, int height)
 {
-    // loader obj_loader = loader("C:/Users/Cronix/Documents/cronix_dev/raytracing/object/fruit/fruit.obj");
+    loader obj_loader = loader("C:/Users/Cronix/Documents/cronix_dev/raytracing/object/fruit/fruit.obj");
 
-    camera cam =  camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
+    // camera cam =  camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
     // camera cam = camera(vec3d(0, 10, 40), vec3d(0, 10, 0), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
-    // camera cam = camera(vec3d(3, 2, -5), vec3d(1.5, 0.2, -2), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
+    camera cam = camera(vec3d(3, 2, -5), vec3d(1.5, 0.2, -2), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
     // camera cam = camera(vec3d(-0.5, 1, 4), vec3d(0.5, 0, 0), vec3d(0, 1, 0), 55, 1.78, 0, 1, 0, 1);
-    object* light = new flip(new planexz(213, 343, 227, 332, 554, new emissive(vec3d(30, 30, 30))));
+    // object* light = new flip(new planexz(213, 343, 227, 332, 554, new emissive(vec3d(30, 30, 30))));
 
-    scene scn = scene(1024, 1024);
-    scn.add_object(cornell_box());
-    scn.add_light(light);
+    scene scn = scene(1920, 1080);
+    scn.add_object(obj_loader.meshes());
+    scn.add_light(obj_loader.lights());
     scn.set_camera(cam);
     scn.build_bvh();
 
@@ -136,7 +136,7 @@ void render_image(const char* path, int width, int height)
 
 int main(int argc, char* argv[])
 {
-    int width = 1024, height = 1024;
-    render_image("./output2.png", width, height);
+    int width = 1920, height = 1080;
+    render_image("./output3.png", width, height);
     return 0;
 }
