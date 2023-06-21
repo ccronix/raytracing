@@ -31,6 +31,5 @@ struct scatter {
 
     ray specular;
     bool is_spec;
-    pdf* pdf_ptr;
     vec3d attenuation;
 };

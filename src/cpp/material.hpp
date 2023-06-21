@@ -1,7 +1,5 @@
 #pragma once
 
-
-#include "pdf.hpp"
 #include "texture.hpp"
 #include "intersection.hpp"
 #include "algebra/algebra.hpp"
@@ -13,7 +11,8 @@ class material {
 public:
     virtual vec3d emit(const ray&r, const intersection& crossover, const vec3d& position, const vec2d uv_coord) const { return vec3d(0, 0, 0); }
     virtual bool shading(const ray&r, const intersection& crossover, scatter& scatter) const { return false; };
-    virtual double shading_pdf(const ray& r, const intersection& crossover, const ray& scatter) const { return 0.0; };
+    virtual double pdf(const ray& r, const intersection& crossover, const ray& scatter) const { return 0.0; };
+    virtual vec3d sample(const ray&r, const intersection& crossover) const { return vec3d(0, 0, 0); }
     virtual bool has_emission() const { return false; }
 };
 
@@ -31,14 +30,24 @@ public:
     {
         scatter.is_spec = false;
         scatter.attenuation = base_color->color(crossover.position, crossover.uv_coord);
-        scatter.pdf_ptr = new cos_pdf(crossover.normal);
         return true;
     }
 
-    virtual double shading_pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
+    virtual double pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
     {
         double cosine = crossover.normal.dot(scatter.direction.normalize());
         return cosine > 0 ? cosine / pi : 0;
+    }
+
+    virtual vec3d sample(const ray&r, const intersection& crossover) const override
+    {
+        vec3d rand_cos = random_cosine();
+        vec3d axis[3];
+        axis[2] = crossover.normal.normalize();
+        vec3d x = (fabs(axis[2].x()) > 0.9) ? vec3d(0, 1, 0) : vec3d(1, 0, 0);
+        axis[1] = axis[2].cross(x).normalize();
+        axis[0] = axis[2].cross(axis[1]);
+        return rand_cos.x() * axis[0] + rand_cos.y() * axis[1] + rand_cos.z() * axis[2];
     }
 };
 
@@ -67,9 +76,19 @@ public:
         vec3d fuzz = roughness * random_shpere();
         scatter.specular = ray(crossover.position, next + fuzz, r.time, r.t_min, r.t_max);
         scatter.attenuation = base_color->color(crossover.position, crossover.uv_coord);
-        scatter.pdf_ptr = nullptr;
         scatter.is_spec = true;
         return true;
+    }
+
+    virtual double pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
+    {
+        double cosine = crossover.normal.dot(scatter.direction.normalize());
+        return cosine > epsilon ? 1 : 0;
+    }
+
+    virtual vec3d sample(const ray&r, const intersection& crossover) const override
+    {
+        return reflect(r.direction.normalize(), crossover.normal);
     }
 };
 
@@ -84,7 +103,6 @@ public:
     virtual bool shading(const ray& r, const intersection& crossover, scatter& scatter) const override
     {
         scatter.is_spec = true;
-        scatter.pdf_ptr = nullptr;
         scatter.attenuation = vec3d(1, 1, 1);
         double refract_ratio = crossover.frontward ? (1.0 / ior) : ior;
 
@@ -219,14 +237,12 @@ public:
 
             scatter.specular = ray(crossover.position, next + fuzz, r.time, r.t_min, r.t_max);
             scatter.attenuation = Ks;
-            scatter.pdf_ptr = nullptr;
             scatter.is_spec = true;
             return true;
         }
 
         if (is_transmit()) {
             scatter.is_spec = true;
-            scatter.pdf_ptr = nullptr;
             scatter.attenuation = Tr;
             double refract_ratio = crossover.frontward ? (1.0 / Ni) : Ni;
 
@@ -248,11 +264,10 @@ public:
 
         scatter.is_spec = false;
         scatter.attenuation = base_color;
-        scatter.pdf_ptr = new cos_pdf(crossover.normal);
         return true;
     }
 
-    virtual double shading_pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
+    virtual double pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
     {
         double cosine = crossover.normal.dot(scatter.direction.normalize());
         return cosine > 0 ? cosine / pi : 0;

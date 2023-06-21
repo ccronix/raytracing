@@ -11,9 +11,9 @@
 #include "stb/stb_image_write.hpp"
 
 #include "ray.hpp"
-#include "pdf.hpp"
 #include "bvh.hpp"
 #include "util.hpp"
+#include "demo.hpp"
 #include "group.hpp"
 #include "scene.hpp"
 #include "camera.hpp"
@@ -40,47 +40,54 @@ vec3d trace(const scene& scn, const ray& r,  int depth)
 
     ray next_r;
     scatter scattering;
-    double pdf_value;
+    double pdf, mat_pdf;
     vec3d emission = crossover.mat->emit(r, crossover, crossover.position, crossover.uv_coord);
     if (!crossover.mat->shading(r, crossover, scattering)) {
         return emission;
     }
-    if (scattering.is_spec) {
-        return scattering.attenuation * trace(scn, scattering.specular, depth - 1);
-    }
 
     if (true) {
-        obj_pdf* direct_pdf = new obj_pdf(scn.lights, crossover.position);
-        mix_pdf mixture_pdf = mix_pdf(direct_pdf, scattering.pdf_ptr);
-        next_r = ray(crossover.position, mixture_pdf.generate(), r.time, r.t_min, r.t_max);
-        pdf_value = mixture_pdf.value(next_r.direction);
-        delete direct_pdf;
+        vec3d sample;
+        if (scattering.is_spec) {
+            next_r = ray(crossover.position, crossover.mat->sample(r, crossover), r.time, r.t_min, r.t_max);
+            mat_pdf = crossover.mat->pdf(r, crossover, next_r);
+            pdf =  mat_pdf;
+        }
+        else {
+            if (random_double() < 0.5) {
+                sample = scn.lights->rand(crossover.position);
+            }
+            else {
+                sample = crossover.mat->sample(r, crossover);
+            }
+            next_r = ray(crossover.position, sample, r.time, r.t_min, r.t_max);
+            mat_pdf = crossover.mat->pdf(r, crossover, next_r);
+            pdf = 0.5 * (scn.lights->pdf(crossover.position, next_r.direction) + mat_pdf);
+        }
     }
     else {
-        next_r = ray(crossover.position, scattering.pdf_ptr->generate(), r.time, r.t_min, r.t_max);
-        pdf_value = scattering.pdf_ptr->value(next_r.direction);
+        next_r = ray(crossover.position, crossover.mat->sample(r, crossover), r.time, r.t_min, r.t_max);
+        mat_pdf = crossover.mat->pdf(r, crossover, next_r);
+        pdf = mat_pdf;
     }
 
-    if (scattering.pdf_ptr != nullptr) {
-        delete scattering.pdf_ptr;
-    }
-
-    return emission + scattering.attenuation * crossover.mat->shading_pdf(r, crossover, next_r) * trace(scn, next_r, depth - 1) / pdf_value;
+    return emission + scattering.attenuation * mat_pdf * trace(scn, next_r, depth - 1) / pdf;
 }
 
 
 void render_image(const char* path, int width, int height)
 {
-    loader obj_loader = loader("C:/Users/Cronix/Documents/cronix_dev/raytracing/object/fruit/fruit.obj");
+    // loader obj_loader = loader("C:/Users/Cronix/Documents/cronix_dev/raytracing/object/fruit/fruit.obj");
 
-    camera cam = camera(vec3d(3, 2, -5), vec3d(1.5, 0.2, -2), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
+    camera cam =  camera(vec3d(278, 278, -800), vec3d(278, 278, 0), vec3d(0, 1, 0), 40, 1, 0, 1, 0, 1);
     // camera cam = camera(vec3d(0, 10, 40), vec3d(0, 10, 0), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
-    // camera cam = camera(vec3d(7, 2, 1), vec3d(0, 1.5, -3), vec3d(0, 1, 0), 55, 1.78, 0, 1, 0, 1);
+    // camera cam = camera(vec3d(3, 2, -5), vec3d(1.5, 0.2, -2), vec3d(0, 1, 0), 40, 1.78, 0, 1, 0, 1);
     // camera cam = camera(vec3d(-0.5, 1, 4), vec3d(0.5, 0, 0), vec3d(0, 1, 0), 55, 1.78, 0, 1, 0, 1);
+    object* light = new flip(new planexz(213, 343, 227, 332, 554, new emissive(vec3d(30, 30, 30))));
 
-    scene scn = scene(1920, 1080);
-    scn.add_object(obj_loader.meshes());
-    scn.add_light(obj_loader.lights());
+    scene scn = scene(1024, 1024);
+    scn.add_object(cornell_box());
+    scn.add_light(light);
     scn.set_camera(cam);
     scn.build_bvh();
 
@@ -129,7 +136,7 @@ void render_image(const char* path, int width, int height)
 
 int main(int argc, char* argv[])
 {
-    int width = 1920, height = 1080;
-    render_image("./output.png", width, height);
+    int width = 1024, height = 1024;
+    render_image("./output2.png", width, height);
     return 0;
 }
