@@ -27,51 +27,46 @@
 #include "intersection.hpp"
 
 
-vec3d trace(const scene& scn, const ray& r,  int depth)
+vec3d trace(const scene& scn, const ray& wi,  int depth)
 {
     if (depth <= 0) {
         return vec3d(0, 0, 0);
     }
 
     intersection crossover;
-    if (!scn.objects.intersect(r, crossover)) {
+    if (!scn.objects.intersect(wi, crossover)) {
         return vec3d(0, 0, 0);
     }
 
-    ray next_r;
-    scatter scattering;
+    ray wo;
+    vec3d attenuation;
+    bool is_spec = false;
     double pdf, mat_pdf;
-    vec3d emission = crossover.mat->emit(r, crossover, crossover.position, crossover.uv_coord);
-    if (!crossover.mat->shading(r, crossover, scattering)) {
+    vec3d emission = crossover.mat->emit(wi, crossover, crossover.position, crossover.uv_coord);
+    if (!crossover.mat->shading(wi, crossover, wo, attenuation, is_spec)) {
         return emission;
     }
 
     if (true) {
-        vec3d sample;
-        if (scattering.is_spec) {
-            next_r = ray(crossover.position, crossover.mat->sample(r, crossover), r.time, r.t_min, r.t_max);
-            mat_pdf = crossover.mat->pdf(r, crossover, next_r);
+        if (is_spec) {
+            mat_pdf = crossover.mat->pdf(wi, crossover, wo);
             pdf =  mat_pdf;
         }
         else {
             if (random_double() < 0.5) {
-                sample = scn.lights->rand(crossover.position);
+                wo = ray(crossover.position, scn.lights->rand(crossover.position), wi.time, wi.t_min, wi.t_max);
             }
-            else {
-                sample = crossover.mat->sample(r, crossover);
-            }
-            next_r = ray(crossover.position, sample, r.time, r.t_min, r.t_max);
-            mat_pdf = crossover.mat->pdf(r, crossover, next_r);
-            pdf = 0.5 * (scn.lights->pdf(crossover.position, next_r.direction) + mat_pdf);
+            mat_pdf = crossover.mat->pdf(wi, crossover, wo);
+            pdf = 0.5 * (scn.lights->pdf(crossover.position, wo.direction) + mat_pdf);
         }
     }
     else {
-        next_r = ray(crossover.position, crossover.mat->sample(r, crossover), r.time, r.t_min, r.t_max);
-        mat_pdf = crossover.mat->pdf(r, crossover, next_r);
+        wo = ray(crossover.position, crossover.mat->sample(wi, crossover), wi.time, wi.t_min, wi.t_max);
+        mat_pdf = crossover.mat->pdf(wi, crossover, wo);
         pdf = mat_pdf;
     }
 
-    return emission + scattering.attenuation * mat_pdf * trace(scn, next_r, depth - 1) / pdf;
+    return emission + attenuation * mat_pdf * trace(scn, wo, depth - 1) / pdf;
 }
 
 
@@ -137,6 +132,6 @@ void render_image(const char* path, int width, int height)
 int main(int argc, char* argv[])
 {
     int width = 1024, height = 1024;
-    render_image("./output2.png", width, height);
+    render_image("./output.png", width, height);
     return 0;
 }

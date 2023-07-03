@@ -25,11 +25,3 @@ struct intersection {
         normal = frontward ? outward_normal : -outward_normal;
     }
 };
-
-
-struct scatter {
-
-    ray specular;
-    bool is_spec;
-    vec3d attenuation;
-};

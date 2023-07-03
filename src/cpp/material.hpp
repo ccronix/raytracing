@@ -9,10 +9,10 @@
 class material {
 
 public:
-    virtual vec3d emit(const ray&r, const intersection& crossover, const vec3d& position, const vec2d uv_coord) const { return vec3d(0, 0, 0); }
-    virtual bool shading(const ray&r, const intersection& crossover, scatter& scatter) const { return false; };
-    virtual double pdf(const ray& r, const intersection& crossover, const ray& scatter) const { return 0.0; };
-    virtual vec3d sample(const ray&r, const intersection& crossover) const { return vec3d(0, 0, 0); }
+    virtual vec3d emit(const ray& wi, const intersection& crossover, const vec3d& position, const vec2d uv_coord) const { return vec3d(0, 0, 0); }
+    virtual bool shading(const ray& wi, const intersection& crossover, ray& wo, vec3d& attenuation, bool& is_spec) const { return false; };
+    virtual double pdf(const ray& wi, const intersection& crossover, const ray& wo) const { return 0.0; };
+    virtual vec3d sample(const ray& wi, const intersection& crossover) const { return vec3d(0, 0, 0); }
     virtual bool has_emission() const { return false; }
 };
 
@@ -26,16 +26,17 @@ public:
 
     lambertian(texture* tex) { base_color = tex; }
 
-    virtual bool shading(const ray& r, const intersection& crossover, scatter& scatter) const override
+    virtual bool shading(const ray& wi, const intersection& crossover, ray& wo, vec3d& attenuation, bool& is_spec) const override
     {
-        scatter.is_spec = false;
-        scatter.attenuation = base_color->color(crossover.position, crossover.uv_coord);
+        is_spec = false;
+        wo = ray(crossover.position, sample(wi, crossover), wi.time, wi.t_min, wi.t_max);
+        attenuation = base_color->color(crossover.position, crossover.uv_coord);
         return true;
     }
 
-    virtual double pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
+    virtual double pdf(const ray& wi, const intersection& crossover, const ray& wo) const override
     {
-        double cosine = crossover.normal.dot(scatter.direction.normalize());
+        double cosine = crossover.normal.dot(wo.direction.normalize());
         return cosine > 0 ? cosine / pi : 0;
     }
 
@@ -70,19 +71,19 @@ public:
         this->roughness = roughness < 1 ? roughness : 1;
     }
 
-    virtual bool shading(const ray& r, const intersection& crossover, scatter& scatter) const override
+    virtual bool shading(const ray& wi, const intersection& crossover, ray& wo, vec3d& attenuation, bool& is_spec) const override
     {
-        vec3d next = reflect(r.direction.normalize(), crossover.normal);
+        vec3d next = reflect(wi.direction.normalize(), crossover.normal);
         vec3d fuzz = roughness * random_shpere();
-        scatter.specular = ray(crossover.position, next + fuzz, r.time, r.t_min, r.t_max);
-        scatter.attenuation = base_color->color(crossover.position, crossover.uv_coord);
-        scatter.is_spec = true;
+        wo = ray(crossover.position, next + fuzz, wi.time, wi.t_min, wi.t_max);
+        attenuation = base_color->color(crossover.position, crossover.uv_coord);
+        is_spec = true;
         return true;
     }
 
-    virtual double pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
+    virtual double pdf(const ray& wi, const intersection& crossover, const ray& wo) const override
     {
-        double cosine = crossover.normal.dot(scatter.direction.normalize());
+        double cosine = crossover.normal.dot(wo.direction.normalize());
         return cosine > epsilon ? 1 : 0;
     }
 
@@ -101,13 +102,13 @@ public:
 
     dielectric(double ior) { this->ior = ior; }
 
-    virtual bool shading(const ray& r, const intersection& crossover, scatter& scatter) const override
+    virtual bool shading(const ray& wi, const intersection& crossover, ray& wo, vec3d& attenuation, bool& is_spec) const override
     {
-        scatter.is_spec = true;
-        scatter.attenuation = vec3d(1, 1, 1);
+        is_spec = true;
+        attenuation = vec3d(1, 1, 1);
         double refract_ratio = crossover.frontward ? (1.0 / ior) : ior;
 
-        vec3d next = r.direction.normalize();
+        vec3d next = wi.direction.normalize();
         double cos_theta = fmin((-next).dot(crossover.normal), 1.0);
         double sin_theta = sqrt(1.0 - cos_theta * cos_theta);
         bool not_refract = refract_ratio * sin_theta > 1.0;
@@ -119,7 +120,7 @@ public:
         else {
             referaction =  refract(next, crossover.normal, refract_ratio);
         }
-        scatter.specular = ray(crossover.position, referaction, r.time, r.t_min, r.t_max);
+        wo = ray(crossover.position, referaction, wi.time, wi.t_min, wi.t_max);
         return true;
     }
 
@@ -152,7 +153,7 @@ public:
         }
     }
 
-    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const
+    virtual bool shading(const ray& wi, const intersection& crossover, ray& scatter, vec3d& attenuation, bool& is_spec) const
     {
         return false;
     }
@@ -170,9 +171,10 @@ public:
 
     fog(texture* tex) { base_color = tex; }
 
-    virtual bool shading(const ray& r, const intersection& crossover, vec3d& attenuation, ray& scatter) const
+    virtual bool shading(const ray& wi, const intersection& crossover, ray& wo, vec3d& attenuation, bool& is_spec) const override
     {
-        scatter = ray(crossover.position, random_shpere(), r.time, r.t_min, r.t_max);
+        is_spec = false;
+        wo = ray(crossover.position, random_shpere(), wi.time, wi.t_min, wi.t_max);
         attenuation = base_color->color(crossover.position, crossover.uv_coord);
         return true;
     }    
@@ -206,7 +208,7 @@ public:
         }
     }
 
-    virtual bool shading(const ray& r, const intersection& crossover, scatter& scatter) const override
+    virtual bool shading(const ray& wi, const intersection& crossover, ray& wo, vec3d& attenuation, bool& is_spec) const override
     {
         if (is_emissive()) {
             return false;
@@ -221,17 +223,17 @@ public:
         }
 
         if (is_specular() && random_double() < 0.5) {
-            scatter.attenuation = Ks;
-            scatter.is_spec = true;
+            attenuation = Ks;
+            is_spec = true;
             return true;
         }
 
         if (is_transmit()) {
-            scatter.is_spec = true;
-            scatter.attenuation = Tr;
+            is_spec = true;
+            attenuation = Tr;
             double refract_ratio = crossover.frontward ? (1.0 / Ni) : Ni;
 
-            vec3d next = r.direction.normalize();
+            vec3d next = wi.direction.normalize();
             double cos_theta = fmin((-next).dot(crossover.normal), 1.0);
             double sin_theta = sqrt(1.0 - cos_theta * cos_theta);
             bool not_refract = refract_ratio * sin_theta > 1.0;
@@ -243,18 +245,18 @@ public:
             else {
                 referaction =  refract(next, crossover.normal, refract_ratio);
             }
-            scatter.specular = ray(crossover.position, referaction, r.time, r.t_min, r.t_max);
+            wo = ray(crossover.position, referaction, wi.time, wi.t_min, wi.t_max);
             return true;
         }
 
-        scatter.is_spec = false;
-        scatter.attenuation = base_color;
+        is_spec = false;
+        attenuation = base_color;
         return true;
     }
 
-    virtual double pdf(const ray& r, const intersection& crossover, const ray& scatter) const override
+    virtual double pdf(const ray& wi, const intersection& crossover, const ray& wo) const override
     {
-        double cosine = crossover.normal.dot(scatter.direction.normalize());
+        double cosine = crossover.normal.dot(wo.direction.normalize());
         if (is_specular() && random_double() < 0.5) {
             return cosine > epsilon ? 1 : 0;
         }
